@@ -156,15 +156,24 @@
                 if (response.ok) {
                     window.location.href = '/login?registered=true';
                 } else {
-                    const data = await response.json();
-                    errorMsg.innerText = data.detail || "Signup failed.";
+                    // Try to parse JSON, fallback to text
+                    let errorText = "Signup failed.";
+                    try {
+                        const data = await response.json();
+                        errorText = data.detail || errorText;
+                    } catch (e) {
+                        const rawText = await response.text();
+                        errorText = `Error ${response.status}: ${rawText.substring(0, 100)}`;
+                    }
+
+                    errorMsg.innerText = errorText;
                     errorMsg.style.display = "block";
                     btn.disabled = false;
                     btn.innerText = "Create Account";
                 }
             } catch (err) {
                 console.error(err);
-                errorMsg.innerText = "Network error.";
+                errorMsg.innerText = "Network error: " + err.message;
                 errorMsg.style.display = "block";
                 btn.disabled = false;
                 btn.innerText = "Create Account";
