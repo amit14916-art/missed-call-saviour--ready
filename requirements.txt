@@ -9,3 +9,5 @@ python-dotenv
 sqlalchemy
 stripe
 httpx
+passlib[bcrypt]
+python-jose[cryptography]

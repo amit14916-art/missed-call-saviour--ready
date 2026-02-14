@@ -135,10 +135,16 @@
         <!-- DASHBOARD VIEW -->
         <div id="dashboard-view" class="view-section">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
-                <h2>Dashboard Overview</h2>
-                <div
-                    style="background: rgba(0, 210, 255, 0.1); color: #00d2ff; padding: 10px 20px; border-radius: 20px; font-weight: bold;">
-                    Status: Active
+                <div>
+                    <h2>Dashboard Overview</h2>
+                    <div id="user-info-display" style="font-size: 0.9em; color: #64748b; margin-top: 5px;">
+                        Logged in as: <span id="user-email-display" style="color: #00d2ff;">...</span> (<span
+                            id="user-plan-display">...</span>)
+                    </div>
+                </div>
+                <div id="status-badge"
+                    style="background: rgba(251, 191, 36, 0.2); color: #fbbf24; padding: 10px 20px; border-radius: 20px; font-weight: bold;">
+                    Status: Inactive
                 </div>
             </div>
 
@@ -277,6 +283,11 @@
                     <p style="color: #94a3b8;">SMS Gateway for messaging.</p>
                     <div style="color: #fbbf24; font-weight: bold;">Setup Required ⚠</div>
                 </div>
+                <div class="card" style="text-align: center;">
+                    <h3 style="color: #10b981;">Vapi.ai</h3>
+                    <p style="color: #94a3b8;">Voice AI Assistant.</p>
+                    <div style="color: #34d399; font-weight: bold;">Connected ✓</div>
+                </div>
             </div>
         </div>
 
@@ -305,6 +316,43 @@
     </div>
 
     <script>
+        // Check Auth and Load User Data
+        async function initDashboard() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/users/me', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const user = await response.json();
+                    document.getElementById('user-email-display').innerText = user.email;
+                    document.getElementById('user-plan-display').innerText = user.plan + " Plan";
+
+                    if (user.is_active) {
+                        document.getElementById('status-badge').innerText = "Status: Active";
+                        document.getElementById('status-badge').style.color = "#34d399";
+                        document.getElementById('status-badge').style.background = "rgba(16, 185, 129, 0.2)";
+                    }
+                } else {
+                    // Token invalid or expired
+                    localStorage.removeItem('token');
+                    window.location.href = '/login';
+                }
+            } catch (e) {
+                console.error("Auth check failed", e);
+            }
+        }
+
+        window.onload = initDashboard;
+
         function showView(viewId) {
             // Hide all views
             const views = document.querySelectorAll('.view-section');
@@ -330,6 +378,7 @@
         }
     </script>
 
+    <script src="/chatbot.js"></script>
 </body>
 
 </html>
