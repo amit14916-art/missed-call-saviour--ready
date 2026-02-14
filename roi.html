@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROI Calculator | Missed Call Saviour</title>
+    <style>
+        /* Base Styles & Antigravity Vibe */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #0b0f19;
+            color: #e2e8f0;
+            line-height: 1.6;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: #ffffff;
+        }
+
+        a {
+            text-decoration: none;
+            color: #00d2ff;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Buttons */
+        .btn-primary {
+            display: inline-block;
+            background: linear-gradient(45deg, #00d2ff, #3a7bd5);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 1.1em;
+            text-transform: uppercase;
+            box-shadow: 0 4px 15px rgba(0, 210, 255, 0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 210, 255, 0.6);
+        }
+
+        /* Nav */
+        nav {
+            padding: 20px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5em;
+            font-weight: bold;
+            background: -webkit-linear-gradient(#00d2ff, #3a7bd5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-links a {
+            margin-left: 20px;
+            font-weight: 500;
+            font-size: 1em;
+            color: #cbd5e1;
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            color: #00d2ff;
+        }
+
+        /* Sections */
+        section {
+            padding: 80px 0;
+            border-bottom: 1px solid #1e293b;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2.5em;
+            margin-bottom: 50px;
+        }
+
+        /* Calculator Styling */
+        .calc-wrapper {
+            background: #1e293b;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            max-width: 600px;
+            margin: 0 auto;
+            border: 1px solid #334155;
+        }
+
+        .calc-wrapper input[type=number],
+        .calc-wrapper input[type=range] {
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+        }
+
+        .calc-wrapper input[type=number] {
+            padding: 12px;
+            background: #0b0f19;
+            border: 1px solid #334155;
+            color: white;
+            border-radius: 8px;
+        }
+
+        .result-box {
+            background: #0b0f19;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #ef4444;
+            margin-bottom: 20px;
+        }
+
+        .recover-box {
+            background: rgba(0, 210, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #00d2ff;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 40px 0;
+            color: #64748b;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <nav>
+            <a href="/" class="logo">Missed Call Saviour</a>
+            <div class="nav-links">
+                <a href="/">Home</a>
+                <a href="/roi" class="active">ROI Calculator</a>
+                <a href="/pricing">Pricing</a>
+                <a href="/dashboard" class="btn-primary"
+                    style="padding: 10px 20px; font-size: 0.9em; margin-left: 20px; color: white;">Dashboard</a>
+            </div>
+        </nav>
+
+        <section id="calculator">
+            <h2 class="section-title">Calculate Your Recoverable Revenue</h2>
+            <div class="calc-wrapper">
+                <label>Missed Calls per Month</label>
+                <input type="number" id="missedCalls" value="50">
+
+                <label>Average Customer Value ($)</label>
+                <input type="number" id="customerValue" value="500">
+
+                <label>Your Close Rate: <span id="closeRateDisplay" style="color: #00d2ff;">20%</span></label>
+                <input type="range" id="closeRate" min="1" max="100" value="20">
+
+                <div class="result-box">
+                    <p style="margin: 0; color: #94a3b8;">Monthly Revenue Lost:</p>
+                    <h3 id="monthlyLost" style="margin: 5px 0 15px; color: #ef4444; font-size: 2em;">$5,000</h3>
+                    <p style="margin: 0; color: #94a3b8;">Annual Revenue Lost: <strong id="annualLost"
+                            style="color: white;">$60,000</strong></p>
+                </div>
+
+                <div class="recover-box">
+                    <p style="margin: 0; color: #00d2ff;">Revenue You Could Recover Monthly:</p>
+                    <h2 id="recoverable" style="margin: 5px 0 0; color: white; font-size: 2.5em;">$2,500</h2>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <p>&copy; 2026 Missed Call Saviour. A project by Agentic AI World.</p>
+            <p><a href="https://autonumworld.in" style="color: #64748b; text-decoration: underline;">autonumworld.in</a>
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        function calculateROI() {
+            const calls = document.getElementById('missedCalls').value;
+            const value = document.getElementById('customerValue').value;
+            const rate = document.getElementById('closeRate').value;
+
+            document.getElementById('closeRateDisplay').innerText = rate + '%';
+
+            const lostPerMonth = calls * value * (rate / 100);
+            const lostPerYear = lostPerMonth * 12;
+            const recovered = lostPerMonth * 0.5;
+
+            const formatter = new Intl.NumberFormat('en-US', {
+                style: 'currency', currency: 'USD', maximumFractionDigits: 0
+            });
+
+            document.getElementById('monthlyLost').innerText = formatter.format(lostPerMonth);
+            document.getElementById('annualLost').innerText = formatter.format(lostPerYear);
+            document.getElementById('recoverable').innerText = formatter.format(recovered);
+        }
+
+        document.getElementById('missedCalls').addEventListener('input', calculateROI);
+        document.getElementById('customerValue').addEventListener('input', calculateROI);
+        document.getElementById('closeRate').addEventListener('input', calculateROI);
+
+        calculateROI();
+    </script>
+</body>
+
+</html>

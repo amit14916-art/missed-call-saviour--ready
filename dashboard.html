@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Missed Call Saviour</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #0b0f19;
+            color: #e2e8f0;
+        }
+
+        .sidebar {
+            width: 250px;
+            background: #1e293b;
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            border-right: 1px solid #334155;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .main-content {
+            margin-left: 250px;
+            padding: 40px;
+        }
+
+        .logo {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 40px;
+            background: -webkit-linear-gradient(#00d2ff, #3a7bd5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .menu-item {
+            padding: 15px;
+            cursor: pointer;
+            border-radius: 10px;
+            color: #94a3b8;
+            margin-bottom: 5px;
+        }
+
+        .menu-item:hover,
+        .menu-item.active {
+            background: rgba(0, 210, 255, 0.1);
+            color: #00d2ff;
+        }
+
+        .card {
+            background: #1e293b;
+            padding: 25px;
+            border-radius: 15px;
+            border: 1px solid #334155;
+            margin-bottom: 30px;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: #0b0f19;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #334155;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: white;
+            margin: 10px 0;
+        }
+
+        .stat-label {
+            color: #64748b;
+            font-size: 0.9em;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+
+        .recent-calls-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .recent-calls-table th,
+        .recent-calls-table td {
+            text-align: left;
+            padding: 15px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .recent-calls-table th {
+            color: #64748b;
+        }
+
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="sidebar">
+        <a href="/" class="logo" style="display: block; text-decoration: none;">Missed Call Saviour</a>
+
+        <div class="menu-item active" onclick="showView('dashboard')">Dashboard</div>
+        <div class="menu-item" onclick="showView('logs')">Call Logs</div>
+        <div class="menu-item" onclick="showView('settings')">AI Settings</div>
+        <div class="menu-item" onclick="showView('integrations')">Integrations</div>
+        <div class="menu-item" onclick="showView('billing')">Billing</div>
+    </div>
+
+    <div class="main-content">
+
+        <!-- DASHBOARD VIEW -->
+        <div id="dashboard-view" class="view-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                <h2>Dashboard Overview</h2>
+                <div
+                    style="background: rgba(0, 210, 255, 0.1); color: #00d2ff; padding: 10px 20px; border-radius: 20px; font-weight: bold;">
+                    Status: Active
+                </div>
+            </div>
+
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Missed Calls Saved</div>
+                    <div class="stat-value">12</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Revenue Recovered</div>
+                    <div class="stat-value">$2,400</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">AI Response Rate</div>
+                    <div class="stat-value">100%</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Recent Activity</h3>
+                <table class="recent-calls-table">
+                    <thead>
+                        <tr>
+                            <th>Caller</th>
+                            <th>Time</th>
+                            <th>AI Action</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>+1 (555) 123-4567</td>
+                            <td>10 mins ago</td>
+                            <td>Sent scheduling link</td>
+                            <td><span class="status-badge">Recovered</span></td>
+                        </tr>
+                        <tr>
+                            <td>+1 (555) 987-6543</td>
+                            <td>1 hour ago</td>
+                            <td>Answered FAQ</td>
+                            <td><span class="status-badge">Resolved</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- CALL LOGS VIEW -->
+        <div id="logs-view" class="view-section" style="display: none;">
+            <h2>Call Logs</h2>
+            <div class="card">
+                <p style="color: #94a3b8; margin-bottom: 20px;">Detailed history of all missed calls and AI
+                    interactions.</p>
+                <table class="recent-calls-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Caller</th>
+                            <th>Duration</th>
+                            <th>Timestamp</th>
+                            <th>Transcript</th>
+                            <th>Outcome</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>#1092</td>
+                            <td>+1 (212) 555-0199</td>
+                            <td>1m 30s</td>
+                            <td>Today, 10:45 AM</td>
+                            <td><a href="#" style="color: #00d2ff;">View Transcript</a></td>
+                            <td>Booked Meeting</td>
+                        </tr>
+                        <tr>
+                            <td>#1091</td>
+                            <td>+1 (415) 555-0123</td>
+                            <td>0m 45s</td>
+                            <td>Yesterday, 4:20 PM</td>
+                            <td><a href="#" style="color: #00d2ff;">View Transcript</a></td>
+                            <td>Sent Info</td>
+                        </tr>
+                        <tr>
+                            <td>#1090</td>
+                            <td>+1 (310) 555-0888</td>
+                            <td>2m 10s</td>
+                            <td>Oct 24, 2:00 PM</td>
+                            <td><a href="#" style="color: #00d2ff;">View Transcript</a></td>
+                            <td>Escalated to Human</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- AI SETTINGS VIEW -->
+        <div id="settings-view" class="view-section" style="display: none;">
+            <h2>AI Agent Settings</h2>
+            <div class="card" style="max-width: 600px;">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; color: #cbd5e1; margin-bottom: 10px;">Business Name</label>
+                    <input type="text" value="Acme Corp"
+                        style="width: 100%; padding: 10px; background: #0b0f19; border: 1px solid #334155; color: white; border-radius: 5px;">
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; color: #cbd5e1; margin-bottom: 10px;">Initial SMS Greeting</label>
+                    <textarea
+                        style="width: 100%; padding: 10px; background: #0b0f19; border: 1px solid #334155; color: white; border-radius: 5px; min-height: 100px;">Hey! calls from [Business Name]. Sorry we missed you. How can we help?</textarea>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; color: #cbd5e1; margin-bottom: 10px;">Response Delay (Seconds)</label>
+                    <input type="number" value="30"
+                        style="width: 100%; padding: 10px; background: #0b0f19; border: 1px solid #334155; color: white; border-radius: 5px;">
+                </div>
+                <button class="menu-item active"
+                    style="border: none; padding: 10px 30px; font-weight: bold; background: #00d2ff; color: #0b0f19;">Save
+                    Changes</button>
+            </div>
+        </div>
+
+        <!-- INTEGRATIONS VIEW -->
+        <div id="integrations-view" class="view-section" style="display: none;">
+            <h2>Integrations</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px;">
+                <div class="card" style="text-align: center;">
+                    <h3 style="color: #635bff;">Stripe</h3>
+                    <p style="color: #94a3b8;">Payment processing connected.</p>
+                    <div style="color: #34d399; font-weight: bold;">Connected ✓</div>
+                </div>
+                <div class="card" style="text-align: center;">
+                    <h3 style="color: #663399;">Make.com</h3>
+                    <p style="color: #94a3b8;">Workflow automation active.</p>
+                    <div style="color: #34d399; font-weight: bold;">Connected ✓</div>
+                </div>
+                <div class="card" style="text-align: center;">
+                    <h3 style="color: #f22f46;">Twilio</h3>
+                    <p style="color: #94a3b8;">SMS Gateway for messaging.</p>
+                    <div style="color: #fbbf24; font-weight: bold;">Setup Required ⚠</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BILLING VIEW -->
+        <div id="billing-view" class="view-section" style="display: none;">
+            <h2>Billing & Subscription</h2>
+            <div class="card">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 20px; margin-bottom: 20px;">
+                    <div>
+                        <h3 style="margin: 0; color: white;">Professional Plan</h3>
+                        <p style="margin: 5px 0 0; color: #94a3b8;">$99/month • Next billing date: Nov 24, 2026</p>
+                    </div>
+                    <button
+                        style="padding: 10px 20px; background: #ef4444; color: white; border: none; border-radius: 5px; cursor: pointer;">Cancel
+                        Subscription</button>
+                </div>
+                <h4 style="color: #cbd5e1;">Payment Method</h4>
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                    <div style="background: #334155; padding: 5px 10px; border-radius: 5px;">VISA</div>
+                    <span style="color: white;">•••• •••• •••• 4242</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function showView(viewId) {
+            // Hide all views
+            const views = document.querySelectorAll('.view-section');
+            views.forEach(view => view.style.display = 'none');
+
+            // Show selected view
+            const selectedView = document.getElementById(viewId + '-view');
+            if (selectedView) {
+                selectedView.style.display = 'block';
+            }
+
+            // Update sidebar active state
+            const menuItems = document.querySelectorAll('.menu-item');
+            menuItems.forEach(item => {
+                if (item.innerText.toLowerCase().includes(viewId.replace('-', ' '))) {
+                    item.classList.add('active');
+                } else if (viewId === 'dashboard' && item.innerText === 'Dashboard') {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+        }
+    </script>
+
+</body>
+
+</html>
