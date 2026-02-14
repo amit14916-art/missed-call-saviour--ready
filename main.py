@@ -94,9 +94,20 @@ pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # --- Database Setup ---
-# Use /tmp directory to ensure write permissions on cloud environments
-SQLALCHEMY_DATABASE_URL = "sqlite:////tmp/missed_calls.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL:
+    # Fix Render's postgres:// to postgresql:// if needed
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    
+    engine = create_engine(DATABASE_URL)
+else:
+    # Local fallback
+    print("WARNING: Using Local SQLite Database. Data will be lost on re-deploy!")
+    SQLALCHEMY_DATABASE_URL = "sqlite:////tmp/missed_calls.db"
+    engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

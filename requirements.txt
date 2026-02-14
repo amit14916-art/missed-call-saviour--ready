@@ -7,8 +7,9 @@ python-multipart
 fastapi-mail
 python-dotenv
 sqlalchemy
+psycopg2-binary
 stripe
 httpx
-passlib[bcrypt]
+passlib[sha256_crypt]
 python-jose[cryptography]
 razorpay
