@@ -11,3 +11,4 @@ stripe
 httpx
 passlib[bcrypt]
 python-jose[cryptography]
+razorpay
