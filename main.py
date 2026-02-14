@@ -271,28 +271,35 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
 @app.post("/api/signup")
 async def signup(background_tasks: BackgroundTasks, email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == email).first()
-    if user:
-         raise HTTPException(status_code=400, detail="Email already registered")
-    
-    hashed_password = get_password_hash(password)
-    new_user = User(email=email, hashed_password=hashed_password)
-    db.add(new_user)
-    db.commit()
-    
-    # Send Welcome Email
-    welcome_body = f"""
-    <h1>Welcome to Missed Call Saviour!</h1>
-    <p>Hi there,</p>
-    <p>Thanks for creating an account. We are excited to help you recover lost revenue from missed calls.</p>
-    <p>Get started by setting up your integrations in the dashboard.</p>
-    <br>
-    <p>Best,</p>
-    <p>The Missed Call Saviour Team</p>
-    """
-    background_tasks.add_task(send_email_background, "Welcome to Missed Call Saviour", email, welcome_body)
-    
-    return {"message": "User created successfully"}
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if user:
+             raise HTTPException(status_code=400, detail="Email already registered")
+        
+        hashed_password = get_password_hash(password)
+        new_user = User(email=email, hashed_password=hashed_password)
+        db.add(new_user)
+        db.commit()
+        
+        # Send Welcome Email
+        welcome_body = f"""
+        <h1>Welcome to Missed Call Saviour!</h1>
+        <p>Hi there,</p>
+        <p>Thanks for creating an account. We are excited to help you recover lost revenue from missed calls.</p>
+        <p>Get started by setting up your integrations in the dashboard.</p>
+        <br>
+        <p>Best,</p>
+        <p>The Missed Call Saviour Team</p>
+        """
+        background_tasks.add_task(send_email_background, "Welcome to Missed Call Saviour", email, welcome_body)
+        
+        return {"message": "User created successfully"}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/roi", response_class=HTMLResponse)
 async def read_roi():
