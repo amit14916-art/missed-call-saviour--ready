@@ -84,15 +84,18 @@ async def process_payment(
 ):
 
 # --- Security Config ---
+# --- Security Config ---
 SECRET_KEY = "super-secret-key-change-this-in-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 300
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Use sha256_crypt to avoid binary dependency issues on Render
+pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # --- Database Setup ---
-SQLALCHEMY_DATABASE_URL = "sqlite:///./missed_calls.db"
+# Use /tmp directory to ensure write permissions on cloud environments
+SQLALCHEMY_DATABASE_URL = "sqlite:////tmp/missed_calls.db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
