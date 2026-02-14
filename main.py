@@ -13,6 +13,7 @@ import uvicorn
 import os
 import stripe
 import httpx
+import razorpay
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -22,6 +23,65 @@ load_dotenv()
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 DOMAIN = "http://127.0.0.1:8000"
 MAKE_WEBHOOK_URL = os.getenv("MAKE_WEBHOOK_URL")
+
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
+
+razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)) if RAZORPAY_KEY_ID else None
+
+
+@app.post("/api/razorpay/create-order")
+async def create_razorpay_order(email: str = Form(...), plan: str = Form(...)):
+    if not razorpay_client:
+        return JSONResponse(status_code=500, content={"error": "Razorpay not configured"})
+    
+    amount = 4900 if "Starter" in plan else 9900 # In paise (4900 = 49 INR)
+    data = { "amount": amount, "currency": "INR", "receipt": email, "notes": {"plan": plan} }
+    
+    try:
+        order = razorpay_client.order.create(data=data)
+        return {"id": order['id'], "amount": order['amount'], "currency": order['currency'], "key_id": RAZORPAY_KEY_ID}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/api/razorpay/verify")
+async def verify_razorpay_payment(
+    background_tasks: BackgroundTasks,
+    razorpay_payment_id: str = Form(...),
+    razorpay_order_id: str = Form(...),
+    razorpay_signature: str = Form(...),
+    email: str = Form(...),
+    plan: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    if not razorpay_client:
+        return JSONResponse(status_code=500, content={"error": "Razorpay not configured"})
+        
+    try:
+        # Verify Signature
+        params_dict = {
+            'razorpay_order_id': razorpay_order_id,
+            'razorpay_payment_id': razorpay_payment_id,
+            'razorpay_signature': razorpay_signature
+        }
+        razorpay_client.utility.verify_payment_signature(params_dict)
+        
+        # If successful, activate user
+        return await process_payment(background_tasks, email, plan, "RAZORPAY", db)
+        
+    except razorpay.errors.SignatureVerificationError:
+         return JSONResponse(status_code=400, content={"error": "Payment verification failed"})
+    except Exception as e:
+         return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/api/process-payment")
+async def process_payment(
+    background_tasks: BackgroundTasks,
+    email: str = Form(...),
+    plan: str = Form(...),
+    card_number: str = Form(None),
+    db: Session = Depends(get_db)
+):
 
 # --- Security Config ---
 SECRET_KEY = "super-secret-key-change-this-in-production"
@@ -103,18 +163,21 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     return user
 
 # Email Config
-conf = ConnectionConfig(
-    MAIL_USERNAME = os.getenv("MAIL_USERNAME", ""),
-    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", ""),
-    MAIL_FROM = os.getenv("MAIL_FROM", "noreply@missedcallsaviour.com"),
-    MAIL_PORT = int(os.getenv("MAIL_PORT", 587)),
-    MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.gmail.com"),
-    MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "Missed Call Saviour"),
-    MAIL_STARTTLS = True,
-    MAIL_SSL_TLS = False,
-    USE_CREDENTIALS = True,
-    VALIDATE_CERTS = True
-)
+# Email Config
+conf = None
+if os.getenv("MAIL_USERNAME") and os.getenv("MAIL_PASSWORD"):
+    conf = ConnectionConfig(
+        MAIL_USERNAME = os.getenv("MAIL_USERNAME"),
+        MAIL_PASSWORD = os.getenv("MAIL_PASSWORD"),
+        MAIL_FROM = os.getenv("MAIL_FROM", "noreply@missedcallsaviour.com"),
+        MAIL_PORT = int(os.getenv("MAIL_PORT", 587)),
+        MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.gmail.com"),
+        MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "Missed Call Saviour"),
+        MAIL_STARTTLS = True,
+        MAIL_SSL_TLS = False,
+        USE_CREDENTIALS = True,
+        VALIDATE_CERTS = True
+    )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -138,6 +201,26 @@ async def trigger_make_webhook(event_type: str, data: dict):
             print(f"Successfully triggered Make.com webhook for {event_type}")
     except Exception as e:
         print(f"Failed to trigger Make.com webhook: {e}")
+
+# --- Helper Functions ---
+async def send_email_background(subject: str, email_to: str, body: str):
+    if not conf:
+        print(f"Mock Sended Email: {subject} to {email_to}")
+        return
+
+    message = MessageSchema(
+        subject=subject,
+        recipients=[email_to],
+        body=body,
+        subtype=MessageType.html
+    )
+    
+    fm = FastMail(conf)
+    try:
+        await fm.send_message(message)
+        print(f"Email sent: {subject} to {email_to}")
+    except Exception as e:
+        print(f"Failed to send email: {e}")
 
 # --- Routes ---
 
@@ -187,7 +270,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     return {"access_token": access_token, "token_type": "bearer"}
 
 @app.post("/api/signup")
-async def signup(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+async def signup(background_tasks: BackgroundTasks, email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == email).first()
     if user:
          raise HTTPException(status_code=400, detail="Email already registered")
@@ -196,6 +279,18 @@ async def signup(email: str = Form(...), password: str = Form(...), db: Session 
     new_user = User(email=email, hashed_password=hashed_password)
     db.add(new_user)
     db.commit()
+    
+    # Send Welcome Email
+    welcome_body = f"""
+    <h1>Welcome to Missed Call Saviour!</h1>
+    <p>Hi there,</p>
+    <p>Thanks for creating an account. We are excited to help you recover lost revenue from missed calls.</p>
+    <p>Get started by setting up your integrations in the dashboard.</p>
+    <br>
+    <p>Best,</p>
+    <p>The Missed Call Saviour Team</p>
+    """
+    background_tasks.add_task(send_email_background, "Welcome to Missed Call Saviour", email, welcome_body)
     
     return {"message": "User created successfully"}
 
@@ -233,6 +328,46 @@ async def send_demo_sms(background_tasks: BackgroundTasks, phone: str = Form(...
     
     return {"success": True, "message": "Demo SMS queued."}
 
+@app.post("/api/create-checkout-session")
+async def create_checkout_session(email: str = Form(...), plan: str = Form(...)):
+    """
+    Creates a Stripe Checkout Session for real payments.
+    """
+    if not stripe.api_key:
+         return JSONResponse(status_code=400, content={"error": "Stripe API Key is missing. Check .env"})
+
+    price_id = "price_1Ot..." # You need to replace this with your actual Stripe Price ID for the plan
+    
+    # Dynamic Price Lookup (Simplified)
+    if "Starter" in plan:
+        amount = 4900 # $49.00
+    else:
+        amount = 9900 # $99.00
+        
+    try:
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[
+                {
+                    'price_data': {
+                        'currency': 'usd',
+                        'product_data': {
+                            'name': f"Missed Call Saviour - {plan} Plan",
+                        },
+                        'unit_amount': amount,
+                    },
+                    'quantity': 1,
+                },
+            ],
+            mode='payment', # Or 'subscription' if you have recurring
+            success_url=DOMAIN + '/dashboard?status=active&session_id={CHECKOUT_SESSION_ID}',
+            cancel_url=DOMAIN + '/pricing',
+            customer_email=email,
+        )
+        return {"checkout_url": checkout_session.url}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.post("/api/process-payment")
 async def process_payment(
     background_tasks: BackgroundTasks,
@@ -269,23 +404,16 @@ async def process_payment(
     db.commit()
 
     # 5. Send Email (if configured)
-    if os.getenv("MAIL_USERNAME") and os.getenv("MAIL_PASSWORD"):
-        message = MessageSchema(
-            subject="Welcome to Missed Call Saviour!",
-            recipients=[email],
-            body=f"""
-            <h1>Payment Successful!</h1>
-            <p>Hi there,</p>
-            <p>Your payment of <strong>${total_amount}</strong> was successful.</p>
-            <p>Plan: {plan} (${plan_price}/mo)</p>
-            <p>Registration Fee: ${REGISTRATION_FEE} (Paid)</p>
-            <br>
-            <p>Welcome to the family!</p>
-            """,
-            subtype=MessageType.html
-        )
-        fm = FastMail(conf)
-        background_tasks.add_task(fm.send_message, message)
+    body = f"""
+    <h1>Payment Successful!</h1>
+    <p>Hi there,</p>
+    <p>Your payment of <strong>${total_amount}</strong> was successful.</p>
+    <p>Plan: {plan} (${plan_price}/mo)</p>
+    <p>Registration Fee: ${REGISTRATION_FEE} (Paid)</p>
+    <br>
+    <p>Welcome to the family!</p>
+    """
+    background_tasks.add_task(send_email_background, "Welcome to Missed Call Saviour!", email, body)
 
     # 6. Trigger Make.com Webhook
     webhook_data = {
@@ -333,7 +461,19 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
              # Log call summary to database/Make.com
              summary = payload.get("analysis", {}).get("summary", "No summary provided.")
              recording_url = payload.get("recordingUrl")
+             
+             # Notify Make.com
              background_tasks.add_task(trigger_make_webhook, "call_completed", {"summary": summary, "recording": recording_url})
+             
+             # Notify Admin/User via Email (simulated to Admin for now)
+             admin_email = os.getenv("MAIL_USERNAME")
+             if admin_email:
+                 email_body = f"""
+                 <h1>New Missed Call Handled</h1>
+                 <p><strong>Summary:</strong> {summary}</p>
+                 <p><strong>Recording:</strong> <a href="{recording_url}">Listen Here</a></p>
+                 """
+                 background_tasks.add_task(send_email_background, "New Call Summary", admin_email, email_body)
 
         return {"status": "ok"}
         
