@@ -455,23 +455,24 @@
                 <div class="glass-panel" style="max-width: 600px; padding: 40px;">
                     <h3 style="margin-top: 0; margin-bottom: 24px;">Configure Your Agent</h3>
 
-                    <div class="form-group">
-                        <label>Business Name</label>
-                        <input type="text" value="Acme Corp">
-                    </div>
+                    <form onsubmit="handleConfigUpdate(event)">
+                        <div class="form-group">
+                            <label>Business Name</label>
+                            <input type="text" id="configBusinessName" placeholder="e.g. Acme Corp">
+                        </div>
 
-                    <div class="form-group">
-                        <label>Initial SMS Greeting</label>
-                        <textarea
-                            rows="4">Hey! Calls from [Business Name]. Sorry we missed you. How can we help?</textarea>
-                    </div>
+                        <div class="form-group">
+                            <label>AI Greeting Message</label>
+                            <textarea id="configGreeting" rows="4"
+                                placeholder="Hello! Thanks for calling..."></textarea>
+                            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px;">
+                                This is the first thing your AI will say when it picks up the phone.
+                            </p>
+                        </div>
 
-                    <div class="form-group">
-                        <label>Response Delay (Seconds)</label>
-                        <input type="number" value="30">
-                    </div>
-
-                    <button class="btn">Save Configuration</button>
+                        <button type="submit" class="btn" id="saveConfigBtn">Save Configuration</button>
+                        <div id="configMsg" style="margin-top: 16px; display: none;"></div>
+                    </form>
                 </div>
             </div>
 
@@ -560,6 +561,9 @@
                     // Fetch Dashboard Stats
                     fetchDashboardStats(token);
 
+                    // Fetch AI Config
+                    fetchAIConfig(token);
+
                 } else {
                     localStorage.removeItem('token');
                     window.location.href = '/login';
@@ -612,6 +616,67 @@
                 }
             } catch (e) {
                 console.error("Failed to fetch dashboard stats", e);
+            }
+        }
+
+        async function fetchAIConfig(token) {
+            try {
+                const response = await fetch('/api/ai-config', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const config = await response.json();
+                    const nameInput = document.getElementById('configBusinessName');
+                    const greetingInput = document.getElementById('configGreeting');
+
+                    if (nameInput) nameInput.value = config.business_name || "";
+                    if (greetingInput) greetingInput.value = config.greeting || "";
+                }
+            } catch (e) {
+                console.error("Failed to fetch config", e);
+            }
+        }
+
+        async function handleConfigUpdate(e) {
+            e.preventDefault();
+            const token = localStorage.getItem('token');
+            const btn = document.getElementById('saveConfigBtn');
+            const msg = document.getElementById('configMsg');
+
+            const businessName = document.getElementById('configBusinessName').value;
+            const greeting = document.getElementById('configGreeting').value;
+
+            btn.disabled = true;
+            btn.innerText = "Updating AI Brain...";
+            msg.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/ai-config', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        business_name: businessName,
+                        greeting: greeting
+                    })
+                });
+
+                if (response.ok) {
+                    msg.style.display = 'block';
+                    msg.style.color = '#34d399';
+                    msg.innerText = "Success! Your AI has been updated instantly.";
+                } else {
+                    throw new Error("Update failed");
+                }
+            } catch (e) {
+                msg.style.display = 'block';
+                msg.style.color = '#ef4444';
+                msg.innerText = "Error updating settings. Please try again.";
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Save Configuration";
             }
         }
 

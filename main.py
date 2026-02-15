@@ -547,6 +547,69 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user), db
         "recent_activity": recent_activity
     }
 
+# --- AI Configuration Endpoints ---
+
+@app.get("/api/ai-config")
+async def get_ai_config(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # In a real app, this would be a separate table linked to user_id
+    # For MVP, we'll store basic config on the User model or a new AIConfig model
+    # Let's create a simple JSON response for now, simulating stored config
+    
+    # Check if user has a stored config (mocking for now with default)
+    return {
+        "business_name": "My Business",
+        "greeting": "Hello! I'm calling from My Business. How can I help you today?",
+        "delay": 0
+    }
+
+@app.post("/api/ai-config")
+async def update_ai_config(
+    request: Request,
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    try:
+        data = await request.json()
+        business_name = data.get("business_name")
+        greeting = data.get("greeting")
+        
+        # 1. Update Vapi Assistant via API (The Magic Part)
+        vapi_url = f"https://api.vapi.ai/assistant/{os.getenv('VAPI_ASSISTANT_ID')}"
+        headers = {
+            "Authorization": f"Bearer {os.getenv('VAPI_PRIVATE_KEY')}",
+            "Content-Type": "application/json"
+        }
+        
+        # Construct Vapi System Prompt update
+        # This is where we inject the user's business name/greeting into the AI's brain
+        updated_prompt = f"""
+You are a helpful AI receptionist for {business_name}. 
+Your first message should be: "{greeting}"
+Your goal is to qualify leads and book appointments.
+        """
+        
+        payload = {
+            "model": {
+                "messages": [
+                    {"role": "system", "content": updated_prompt}
+                ]
+            },
+            # "firstMessage": greeting  <-- Vapi sometimes uses this or the system prompt, safer to update prompt
+        }
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.patch(vapi_url, json=payload, headers=headers)
+            
+            if response.status_code != 200:
+                print(f"Vapi Update Error: {response.text}")
+                raise HTTPException(status_code=500, detail="Failed to update AI Assistant")
+                
+        return {"success": True, "message": "AI Assistant Updated Successfully!"}
+
+    except Exception as e:
+        print(f"Config Update Error: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 # Razorpay Routes
 @app.post("/api/razorpay/create-order")
 async def create_razorpay_order(email: str = Form(...), plan: str = Form(...)):
