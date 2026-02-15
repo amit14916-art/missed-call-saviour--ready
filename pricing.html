@@ -342,6 +342,7 @@
         <p><a href="https://autonumworld.in" style="color: #64748b; text-decoration: underline;">autonumworld.in</a></p>
     </footer>
 
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <script>
         // Timer Logic
         let timeRemaining = 300; // 5 minutes
@@ -415,35 +416,81 @@
             btn.disabled = true;
             btn.style.opacity = "0.7";
 
+            const email = document.getElementById('paymentEmail').value;
+
             try {
-                const email = document.getElementById('paymentEmail').value;
+                // 1. Create Order on Backend
                 const formData = new FormData();
                 formData.append('email', email);
                 formData.append('plan', selectedPlan);
-                formData.append('card_number', 'xxxx-xxxx-xxxx-xxxx'); // Dummy
 
-                const response = await fetch('/api/process-payment', {
+                const orderResponse = await fetch('/api/razorpay/create-order', {
                     method: 'POST',
                     body: formData
                 });
 
-                const result = await response.json();
+                const orderData = await orderResponse.json();
 
-                if (result.success) {
-                    btn.innerHTML = "Success! Redirecting...";
-                    setTimeout(() => {
-                        window.location.href = result.redirect_url; // Go to Dashboard
-                    }, 1500);
-                } else {
-                    alert("Payment failed: " + result.message);
+                if (orderData.error) {
+                    throw new Error(orderData.error);
+                }
+
+                // 2. Open Razorpay Checkout
+                var options = {
+                    "key": orderData.key_id,
+                    "amount": orderData.amount,
+                    "currency": orderData.currency,
+                    "name": "Missed Call Saviour",
+                    "description": `${selectedPlan} Plan Subscription`,
+                    "image": "https://cdn-icons-png.flaticon.com/512/4712/4712035.png", // Generic AI icon
+                    "order_id": orderData.id,
+                    "handler": async function (response) {
+                        // 3. Verify Payment on Backend
+                        const verifyData = new FormData();
+                        verifyData.append('razorpay_payment_id', response.razorpay_payment_id);
+                        verifyData.append('razorpay_order_id', response.razorpay_order_id);
+                        verifyData.append('razorpay_signature', response.razorpay_signature);
+                        verifyData.append('email', email);
+                        verifyData.append('plan', selectedPlan);
+
+                        const verifyResponse = await fetch('/api/razorpay/verify', {
+                            method: 'POST',
+                            body: verifyData
+                        });
+
+                        const result = await verifyResponse.json();
+
+                        if (result.success) {
+                            window.location.href = result.redirect_url;
+                        } else {
+                            alert("Payment verification failed. Please contact support.");
+                            loader.style.display = "none";
+                            btn.disabled = false;
+                            btn.style.opacity = "1";
+                        }
+                    },
+                    "prefill": {
+                        "email": email,
+                        "contact": ""
+                    },
+                    "theme": {
+                        "color": "#00d2ff"
+                    }
+                };
+
+                var rzp1 = new Razorpay(options);
+                rzp1.on('payment.failed', function (response) {
+                    alert("Payment Failed: " + response.error.description);
                     loader.style.display = "none";
                     btn.disabled = false;
                     btn.style.opacity = "1";
-                }
+                });
+
+                rzp1.open();
 
             } catch (error) {
                 console.error('Error:', error);
-                alert("An error occurred during payment.");
+                alert("An error occurred: " + error.message);
                 loader.style.display = "none";
                 btn.disabled = false;
                 btn.style.opacity = "1";

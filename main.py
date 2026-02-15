@@ -74,14 +74,6 @@ async def verify_razorpay_payment(
     except Exception as e:
          return JSONResponse(status_code=500, content={"error": str(e)})
 
-@app.post("/api/process-payment")
-async def process_payment(
-    background_tasks: BackgroundTasks,
-    email: str = Form(...),
-    plan: str = Form(...),
-    card_number: str = Form(None),
-    db: Session = Depends(get_db)
-):
 
 # --- Security Config ---
 # --- Security Config ---
