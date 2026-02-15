@@ -531,68 +531,94 @@
         // Check Auth and Load User Data
         async function initDashboard() {
             const token = localStorage.getItem('token');
-            // Allow bypassing for demo purposes if no token, else redirect
-            // For now, we'll just log if no token but let the UI render for the user to see the design
             if (!token) {
-                console.log("No token found - running in demo mode");
-                document.getElementById('user-email-header').innerText = "demo@example.com";
+                console.log("No token found - redirecting to login");
+                window.location.href = '/login';
                 return;
             }
 
             try {
+                // Fetch User Info
                 const response = await fetch('/api/users/me', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
 
                 if (response.ok) {
                     const user = await response.json();
                     document.getElementById('user-email-header').innerText = user.email;
-
-                    const planName = user.plan + " Plan";
-                    document.getElementById('plan-badge').innerText = planName;
+                    document.getElementById('plan-badge').innerText = user.plan + " Plan";
 
                     if (user.is_active) {
                         const statusBadge = document.getElementById('status-badge');
                         statusBadge.innerText = "Active";
                         statusBadge.className = "status-badge status-active";
                     }
+
+                    // Fetch Call Logs
+                    fetchCallLogs(token);
+
                 } else {
-                    // Token invalid or expired
                     localStorage.removeItem('token');
                     window.location.href = '/login';
                 }
             } catch (e) {
                 console.error("Auth check failed", e);
             }
+        }
 
-            // Handle URL params for post-payment success
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('status') === 'active') {
-                // Simulate status update immediately for UX
-                const statusBadge = document.getElementById('status-badge');
-                statusBadge.innerText = "Active";
-                statusBadge.className = "status-badge status-active";
-                // Clear URL
-                window.history.replaceState({}, document.title, "/dashboard");
+        async function fetchCallLogs(token) {
+            try {
+                const response = await fetch('/api/calls', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const logs = await response.json();
+                    renderCallLogs(logs);
+                }
+            } catch (e) {
+                console.error("Failed to fetch logs", e);
             }
+        }
+
+        function renderCallLogs(logs) {
+            const tbody = document.querySelector("#logs-view tbody");
+            if (!tbody) return;
+
+            tbody.innerHTML = ""; // Clear mock data
+
+            if (logs.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='6' style='text-align:center;'>No calls recorded yet.</td></tr>";
+                return;
+            }
+
+            logs.forEach(log => {
+                const date = new Date(log.timestamp).toLocaleString();
+                const statusColor = log.status === 'completed' ? 'status-active' : 'status-inactive';
+                const statusText = log.status === 'completed' ? 'Completed' : 'Failed';
+
+                const row = `
+                    <tr>
+                        <td>#${log.id}</td>
+                        <td>${log.phone_number}</td>
+                        <td>-</td> 
+                        <td>${date}</td>
+                        <td>${log.recording_url ? `<a href="${log.recording_url}" target="_blank" style="color: #00c6ff;">Listen</a>` : 'No Recording'}</td>
+                        <td><span class="status-badge ${statusColor}">${statusText}</span></td>
+                    </tr>
+                `;
+                tbody.insertAdjacentHTML('beforeend', row);
+            });
         }
 
         window.onload = initDashboard;
 
         function showView(viewId) {
-            // Hide all views
             const views = document.querySelectorAll('.view-section');
             views.forEach(view => view.style.display = 'none');
 
-            // Show selected view
             const selectedView = document.getElementById(viewId + '-view');
-            if (selectedView) {
-                selectedView.style.display = 'block';
-            }
+            if (selectedView) selectedView.style.display = 'block';
 
-            // Update Title
             const titles = {
                 'dashboard': 'Dashboard Overview',
                 'logs': 'Call Logs & Transcripts',
@@ -600,23 +626,12 @@
                 'integrations': 'Connected Services',
                 'billing': 'Billing & Payments'
             };
-            document.getElementById('page-title').innerText = titles[viewId] || 'Dashboard';
+            const titleElem = document.getElementById('page-title');
+            if (titleElem) titleElem.innerText = titles[viewId] || 'Dashboard';
 
-            // Custom logic: remove active class from all, add to clicked
-            // We need to match based on the onclick content
             const menuItems = document.querySelectorAll('.menu-item');
             menuItems.forEach(item => {
-                // Reset
                 item.classList.remove('active');
-            });
-
-            // Find the one that was clicked (based on viewId)
-            // Since we can't easily grab "this" from the function call in global scope without passing it,
-            // we'll loop again and find the one that matches the text content approximately or has the onclick
-            // This is a bit hacky but works for this simple static HTML
-
-            // Actually, best way is to look at the onclick attribute or text
-            menuItems.forEach(item => {
                 if (item.getAttribute('onclick').includes(viewId)) {
                     item.classList.add('active');
                 }

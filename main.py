@@ -70,6 +70,17 @@ class Payment(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     stripe_session_id = Column(String, nullable=True)
 
+class CallLog(Base):
+    __tablename__ = "call_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    user_email = Column(String, index=True, nullable=True) # Linked to user if possible
+    phone_number = Column(String)
+    call_type = Column(String) # outbound-demo, inbound, etc
+    status = Column(String) # completed, failed
+    summary = Column(String, nullable=True)
+    recording_url = Column(String, nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
 Base.metadata.create_all(bind=engine)
 
 def get_db():
@@ -381,6 +392,25 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
         elif message_type == "end-of-call-report":
              summary = payload.get("analysis", {}).get("summary", "No summary provided.")
              recording_url = payload.get("recordingUrl")
+             customer_number = payload.get("customer", {}).get("number", "Unknown")
+             
+             # Save to DB
+             db = SessionLocal()
+             try:
+                 new_call = CallLog(
+                     phone_number=customer_number,
+                     call_type="inbound/outbound", # Vapi doesn't always specify clearly, generally inbound for missed calls
+                     status="completed",
+                     summary=summary,
+                     recording_url=recording_url
+                 )
+                 db.add(new_call)
+                 db.commit()
+             except Exception as db_e:
+                 print(f"Failed to save call log: {db_e}")
+             finally:
+                 db.close()
+
              admin_email = os.getenv("MAIL_USERNAME")
              if admin_email:
                  email_body = f"<h1>New Call</h1><p>{summary}</p><p><a href='{recording_url}'>Recording</a></p>"
@@ -400,6 +430,13 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
         "stripe_customer_id": current_user.stripe_customer_id,
         "registration_date": current_user.registration_date
     }
+
+@app.get("/api/calls")
+async def get_call_logs(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # In a real SaaS, filter by current_user.id or phone_number
+    # For now in MVP (single tenant feeling), return last 20 calls
+    logs = db.query(CallLog).order_by(CallLog.timestamp.desc()).limit(20).all()
+    return logs
 
 # Razorpay Routes
 @app.post("/api/razorpay/create-order")
