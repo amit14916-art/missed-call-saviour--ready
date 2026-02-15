@@ -157,7 +157,7 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None):
     Triggers an outbound call using Vapi.ai API
     """
     vapi_url = "https://api.vapi.ai/call"
-    vapi_private_key = os.getenv("VAPI_PRIVATE_KEY")
+    vapi_private_key = os.getenv("VAPI_PRIVATE_KEY", "").strip()
     vapi_assistant_id = os.getenv("VAPI_ASSISTANT_ID")
     
     if not vapi_private_key or not vapi_assistant_id:
