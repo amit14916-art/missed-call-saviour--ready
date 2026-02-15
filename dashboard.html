@@ -557,6 +557,9 @@
                     // Fetch Call Logs
                     fetchCallLogs(token);
 
+                    // Fetch Dashboard Stats
+                    fetchDashboardStats(token);
+
                 } else {
                     localStorage.removeItem('token');
                     window.location.href = '/login';
@@ -564,6 +567,67 @@
             } catch (e) {
                 console.error("Auth check failed", e);
             }
+        }
+
+        async function fetchDashboardStats(token) {
+            try {
+                const response = await fetch('/api/dashboard/stats', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const stats = await response.json();
+
+                    // Update Stat Cards
+                    const statValues = document.querySelectorAll('.stat-value');
+                    if (statValues.length >= 2) {
+                        statValues[0].innerText = stats.missed_calls_saved;
+                        statValues[1].innerText = "$" + stats.est_revenue.toLocaleString();
+                        statValues[2].innerText = stats.engagement_rate;
+                    }
+
+                    // Update Recent Activity Table
+                    const activityTbody = document.querySelector("#dashboard-view tbody");
+                    if (activityTbody) {
+                        activityTbody.innerHTML = "";
+
+                        if (stats.recent_activity.length === 0) {
+                            activityTbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color: #94a3b8;'>No recent calls. Start a demo!</td></tr>";
+                            return;
+                        }
+
+                        stats.recent_activity.forEach(act => {
+                            const timeAgo = getTimeAgo(new Date(act.time));
+                            const row = `
+                                <tr>
+                                    <td>${act.phone}</td>
+                                    <td>${timeAgo}</td>
+                                    <td>${act.recording_url ? 'Recorded Conversation' : 'Call Initiated'}</td>
+                                    <td><span style="color: #34d399;">● ${act.status}</span></td>
+                                </tr>
+                             `;
+                            activityTbody.insertAdjacentHTML('beforeend', row);
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to fetch dashboard stats", e);
+            }
+        }
+
+        function getTimeAgo(date) {
+            const seconds = Math.floor((new Date() - date) / 1000);
+            let interval = seconds / 31536000;
+            if (interval > 1) return Math.floor(interval) + " years ago";
+            interval = seconds / 2592000;
+            if (interval > 1) return Math.floor(interval) + " months ago";
+            interval = seconds / 86400;
+            if (interval > 1) return Math.floor(interval) + " days ago";
+            interval = seconds / 3600;
+            if (interval > 1) return Math.floor(interval) + " hours ago";
+            interval = seconds / 60;
+            if (interval > 1) return Math.floor(interval) + " mins ago";
+            return Math.floor(seconds) + " seconds ago";
         }
 
         async function fetchCallLogs(token) {

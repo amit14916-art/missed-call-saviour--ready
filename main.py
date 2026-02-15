@@ -438,6 +438,34 @@ async def get_call_logs(current_user: User = Depends(get_current_user), db: Sess
     logs = db.query(CallLog).order_by(CallLog.timestamp.desc()).limit(20).all()
     return logs
 
+@app.get("/api/dashboard/stats")
+async def get_dashboard_stats(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # 1. Total Calls
+    total_calls = db.query(CallLog).count()
+    
+    # 2. Estimate Revenue (Mock logic: Each call "saves" $200 potentially)
+    est_revenue = total_calls * 200
+    
+    # 3. Recent Activity (Last 5 calls)
+    recent_calls = db.query(CallLog).order_by(CallLog.timestamp.desc()).limit(5).all()
+    
+    recent_activity = []
+    for call in recent_calls:
+        recent_activity.append({
+            "phone": call.phone_number,
+            "time": call.timestamp, # specific formatting can be done in frontend
+            "action": "Call Completed", # Placeholder until advanced analysis integration
+            "status": "Recovered" if call.status == "completed" else "Failed",
+            "recording_url": call.recording_url
+        })
+
+    return {
+        "missed_calls_saved": total_calls,
+        "est_revenue": est_revenue,
+        "engagement_rate": "100%", # Placeholder
+        "recent_activity": recent_activity
+    }
+
 # Razorpay Routes
 @app.post("/api/razorpay/create-order")
 async def create_razorpay_order(email: str = Form(...), plan: str = Form(...)):
