@@ -158,7 +158,8 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None):
     """
     vapi_url = "https://api.vapi.ai/call"
     vapi_private_key = os.getenv("VAPI_PRIVATE_KEY", "").strip()
-    vapi_assistant_id = os.getenv("VAPI_ASSISTANT_ID")
+    vapi_assistant_id = os.getenv("VAPI_ASSISTANT_ID", "").strip()
+    vapi_phone_number_id = os.getenv("VAPI_PHONE_NUMBER_ID", "").strip()
     
     if not vapi_private_key or not vapi_assistant_id:
         print("Skipping Vapi call (not configured): Missing VAPI_PRIVATE_KEY or VAPI_ASSISTANT_ID")
@@ -169,7 +170,7 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None):
       "customer": {
         "number": phone
       },
-      "phoneNumberId": os.getenv("VAPI_PHONE_NUMBER_ID"), 
+      "phoneNumberId": vapi_phone_number_id, 
     }
     
     if message:
