@@ -648,7 +648,7 @@
             const tbody = document.querySelector("#logs-view tbody");
             if (!tbody) return;
 
-            tbody.innerHTML = ""; // Clear mock data
+            tbody.innerHTML = "";
 
             if (logs.length === 0) {
                 tbody.innerHTML = "<tr><td colspan='6' style='text-align:center;'>No calls recorded yet.</td></tr>";
@@ -660,13 +660,24 @@
                 const statusColor = log.status === 'completed' ? 'status-active' : 'status-inactive';
                 const statusText = log.status === 'completed' ? 'Completed' : 'Failed';
 
+                // Format Duration
+                const duration = log.duration || 0;
+                const durationText = duration < 60 ? `${duration}s` : `${Math.floor(duration / 60)}m ${duration % 60}s`;
+
+                // If recording exists, make it a nice link that opens in new tab (easiest for MVP)
+                // or we could add an <audio> tag but layout might break. 
+                // Let's stick to a solid link for now.
+                const recordingLink = log.recording_url
+                    ? `<a href="${log.recording_url}" target="_blank" style="color: #00c6ff; text-decoration: none; font-weight: 600;">▶ Play Recording</a>`
+                    : '<span style="color: #64748b;">No Audio</span>';
+
                 const row = `
                     <tr>
                         <td>#${log.id}</td>
                         <td>${log.phone_number}</td>
-                        <td>-</td> 
+                        <td>${durationText}</td> 
                         <td>${date}</td>
-                        <td>${log.recording_url ? `<a href="${log.recording_url}" target="_blank" style="color: #00c6ff;">Listen</a>` : 'No Recording'}</td>
+                        <td>${recordingLink}</td>
                         <td><span class="status-badge ${statusColor}">${statusText}</span></td>
                     </tr>
                 `;
