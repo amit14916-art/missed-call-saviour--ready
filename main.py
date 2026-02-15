@@ -23,79 +23,25 @@ load_dotenv()
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 DOMAIN = os.getenv("DOMAIN", "http://127.0.0.1:8000")
 
-
+# Razorpay
 RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
 RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
-
 razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)) if RAZORPAY_KEY_ID else None
 
-
-@app.post("/api/razorpay/create-order")
-async def create_razorpay_order(email: str = Form(...), plan: str = Form(...)):
-    if not razorpay_client:
-        return JSONResponse(status_code=500, content={"error": "Razorpay not configured"})
-    
-    amount = 4900 if "Starter" in plan else 9900 # In paise (4900 = 49 INR)
-    data = { "amount": amount, "currency": "INR", "receipt": email, "notes": {"plan": plan} }
-    
-    try:
-        order = razorpay_client.order.create(data=data)
-        return {"id": order['id'], "amount": order['amount'], "currency": order['currency'], "key_id": RAZORPAY_KEY_ID}
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-@app.post("/api/razorpay/verify")
-async def verify_razorpay_payment(
-    background_tasks: BackgroundTasks,
-    razorpay_payment_id: str = Form(...),
-    razorpay_order_id: str = Form(...),
-    razorpay_signature: str = Form(...),
-    email: str = Form(...),
-    plan: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    if not razorpay_client:
-        return JSONResponse(status_code=500, content={"error": "Razorpay not configured"})
-        
-    try:
-        # Verify Signature
-        params_dict = {
-            'razorpay_order_id': razorpay_order_id,
-            'razorpay_payment_id': razorpay_payment_id,
-            'razorpay_signature': razorpay_signature
-        }
-        razorpay_client.utility.verify_payment_signature(params_dict)
-        
-        # If successful, activate user
-        return await process_payment(background_tasks, email, plan, "RAZORPAY", db)
-        
-    except razorpay.errors.SignatureVerificationError:
-         return JSONResponse(status_code=400, content={"error": "Payment verification failed"})
-    except Exception as e:
-         return JSONResponse(status_code=500, content={"error": str(e)})
-
-
-# --- Security Config ---
-# --- Security Config ---
+# Security
 SECRET_KEY = "super-secret-key-change-this-in-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 300
-
-# Use sha256_crypt to avoid binary dependency issues on Render
 pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # --- Database Setup ---
 DATABASE_URL = os.getenv("DATABASE_URL")
-
 if DATABASE_URL:
-    # Fix Render's postgres:// to postgresql:// if needed
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    
     engine = create_engine(DATABASE_URL)
 else:
-    # Local fallback
     print("WARNING: Using Local SQLite Database. Data will be lost on re-deploy!")
     SQLALCHEMY_DATABASE_URL = "sqlite:////tmp/missed_calls.db"
     engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
@@ -110,7 +56,7 @@ class User(Base):
     hashed_password = Column(String)
     plan = Column(String, default="Free")
     is_active = Column(Boolean, default=False)
-    registration_date = Column(DateTime, default=datetime.utcnow) # Created At
+    registration_date = Column(DateTime, default=datetime.utcnow) 
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
     stripe_customer_id = Column(String, nullable=True)
@@ -133,6 +79,7 @@ def get_db():
     finally:
         db.close()
 
+# --- Initialize App ---
 app = FastAPI(title="Missed Call Saviour Backend")
 
 # --- Auth Helpers ---
@@ -144,10 +91,7 @@ def get_password_hash(password):
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+    expire = datetime.utcnow() + (expires_delta if expires_delta else timedelta(minutes=15))
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -170,7 +114,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         raise credentials_exception
     return user
 
-# Email Config
+# --- Email Config ---
 conf = None
 if os.getenv("MAIL_USERNAME") and os.getenv("MAIL_PASSWORD"):
     conf = ConnectionConfig(
@@ -188,57 +132,6 @@ if os.getenv("MAIL_USERNAME") and os.getenv("MAIL_PASSWORD"):
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-async def trigger_vapi_outbound_call(phone: str, message: str = None):
-    """
-    Triggers an outbound call using Vapi.ai API
-    """
-    vapi_url = "https://api.vapi.ai/call"
-    vapi_private_key = os.getenv("VAPI_PRIVATE_KEY")
-    vapi_assistant_id = os.getenv("VAPI_ASSISTANT_ID")
-    
-    if not vapi_private_key or not vapi_assistant_id:
-        print("Skipping Vapi call (not configured): Missing VAPI_PRIVATE_KEY or VAPI_ASSISTANT_ID")
-        return
-
-    payload = {
-      "assistantId": vapi_assistant_id,
-      "customer": {
-        "number": phone
-      },
-      "phoneNumberId": os.getenv("VAPI_PHONE_NUMBER_ID"), # Ideally add this to .env too
-    }
-    
-    if message:
-         # Optionally inject the message as a variable if your assistant is configured to use it
-         # or override the first message
-         payload["assistant"] = {
-             "firstMessage": message,
-              "model": {
-                 "provider": "openai",
-                 "model": "gpt-3.5-turbo",
-                 "messages": [
-                     {
-                         "role": "system",
-                         "content": "You are a helpful assistant."
-                     }
-                 ]
-             }
-         }
-
-    headers = {
-        "Authorization": f"Bearer {vapi_private_key}",
-        "Content-Type": "application/json"
-    }
-
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(vapi_url, json=payload, headers=headers)
-            response.raise_for_status()
-            print(f"Successfully triggered Vapi call to {phone}")
-    except Exception as e:
-        print(f"Failed to trigger Vapi call: {e}")
-
-# --- Helper Functions ---
 async def send_email_background(subject: str, email_to: str, body: str):
     if not conf:
         print(f"Mock Sended Email: {subject} to {email_to}")
@@ -257,6 +150,54 @@ async def send_email_background(subject: str, email_to: str, body: str):
         print(f"Email sent: {subject} to {email_to}")
     except Exception as e:
         print(f"Failed to send email: {e}")
+
+# --- Vapi Helper ---
+async def trigger_vapi_outbound_call(phone: str, message: str = None):
+    """
+    Triggers an outbound call using Vapi.ai API
+    """
+    vapi_url = "https://api.vapi.ai/call"
+    vapi_private_key = os.getenv("VAPI_PRIVATE_KEY")
+    vapi_assistant_id = os.getenv("VAPI_ASSISTANT_ID")
+    
+    if not vapi_private_key or not vapi_assistant_id:
+        print("Skipping Vapi call (not configured): Missing VAPI_PRIVATE_KEY or VAPI_ASSISTANT_ID")
+        return
+
+    payload = {
+      "assistantId": vapi_assistant_id,
+      "customer": {
+        "number": phone
+      },
+      "phoneNumberId": os.getenv("VAPI_PHONE_NUMBER_ID"), 
+    }
+    
+    if message:
+         payload["assistant"] = {
+             "firstMessage": message,
+              "model": {
+                 "provider": "openai",
+                 "model": "gpt-3.5-turbo",
+                 "messages": [{"role": "system", "content": "You are a helpful assistant."}]
+             }
+         }
+
+    headers = {
+        "Authorization": f"Bearer {vapi_private_key}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(vapi_url, json=payload, headers=headers)
+            if response.status_code != 201:
+                print(f"Vapi Error {response.status_code}: {response.text}")
+            response.raise_for_status()
+            print(f"Successfully triggered Vapi call to {phone}")
+    except httpx.HTTPStatusError as e:
+        print(f"Vapi HTTP Error: {e.response.text}")
+    except Exception as e:
+        print(f"Failed to trigger Vapi call: {e}")
 
 # --- Routes ---
 
@@ -290,6 +231,21 @@ async def read_terms():
     with open(os.path.join(BASE_DIR, "terms.html"), "r", encoding="utf-8") as f:
         return f.read()
 
+@app.get("/roi", response_class=HTMLResponse)
+async def read_roi():
+    with open(os.path.join(BASE_DIR, "roi.html"), "r", encoding="utf-8") as f:
+        return f.read()
+
+@app.get("/pricing", response_class=HTMLResponse)
+async def read_pricing():
+    with open(os.path.join(BASE_DIR, "pricing.html"), "r", encoding="utf-8") as f:
+        return f.read()
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def read_dashboard():
+    with open(os.path.join(BASE_DIR, "dashboard.html"), "r", encoding="utf-8") as f:
+        return f.read()
+
 @app.post("/token")
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == form_data.username).first()
@@ -299,15 +255,9 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    # Update Last Login
     user.last_login = datetime.utcnow()
     db.commit()
-    
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
-    )
+    access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
 @app.post("/api/signup")
@@ -327,18 +277,12 @@ async def signup(background_tasks: BackgroundTasks, email: str = Form(...), pass
         db.add(new_user)
         db.commit()
         
-        # Send Welcome Email
-        welcome_body = f"""
+        welcome_body = """
         <h1>Welcome to Missed Call Saviour!</h1>
         <p>Hi there,</p>
-        <p>Thanks for creating an account. We are excited to help you recover lost revenue from missed calls.</p>
-        <p>Get started by setting up your integrations in the dashboard.</p>
-        <br>
-        <p>Best,</p>
-        <p>The Missed Call Saviour Team</p>
+        <p>Thanks for creating an account.</p>
         """
         background_tasks.add_task(send_email_background, "Welcome to Missed Call Saviour", email, welcome_body)
-        
         return {"message": "User created successfully"}
     except HTTPException as he:
         raise he
@@ -347,65 +291,32 @@ async def signup(background_tasks: BackgroundTasks, email: str = Form(...), pass
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/roi", response_class=HTMLResponse)
-async def read_roi():
-    with open(os.path.join(BASE_DIR, "roi.html"), "r", encoding="utf-8") as f:
-        return f.read()
-
-@app.get("/pricing", response_class=HTMLResponse)
-async def read_pricing():
-    with open(os.path.join(BASE_DIR, "pricing.html"), "r", encoding="utf-8") as f:
-        return f.read()
-
-@app.get("/dashboard", response_class=HTMLResponse)
-async def read_dashboard():
-    with open(os.path.join(BASE_DIR, "dashboard.html"), "r", encoding="utf-8") as f:
-        return f.read()
-
 @app.post("/api/send-demo-call")
 async def send_demo_call(background_tasks: BackgroundTasks, phone: str = Form(...)):
-    """
-    Triggers a demo call via Vapi.ai.
-    """
     print(f"Received demo Call request for: {phone}")
-    
-    # Send to Vapi.ai to handle the actual Call
     background_tasks.add_task(trigger_vapi_outbound_call, phone, "Hello! This is your Missed Call Saviour demo. I can help recover lost revenue.")
-    
     return {"success": True, "message": "Demo call queued."}
 
 @app.post("/api/create-checkout-session")
 async def create_checkout_session(email: str = Form(...), plan: str = Form(...)):
-    """
-    Creates a Stripe Checkout Session for real payments.
-    """
     if not stripe.api_key:
          return JSONResponse(status_code=400, content={"error": "Stripe API Key is missing. Check .env"})
 
-    price_id = "price_1Ot..." # You need to replace this with your actual Stripe Price ID for the plan
-    
-    # Dynamic Price Lookup (Simplified)
-    if "Starter" in plan:
-        amount = 4900 # $49.00
-    else:
-        amount = 9900 # $99.00
+    price_id = "price_1Ot..." 
+    amount = 4900 if "Starter" in plan else 9900
         
     try:
         checkout_session = stripe.checkout.Session.create(
             payment_method_types=['card'],
-            line_items=[
-                {
-                    'price_data': {
-                        'currency': 'usd',
-                        'product_data': {
-                            'name': f"Missed Call Saviour - {plan} Plan",
-                        },
-                        'unit_amount': amount,
-                    },
-                    'quantity': 1,
+            line_items=[{
+                'price_data': {
+                    'currency': 'usd',
+                    'product_data': {'name': f"Missed Call Saviour - {plan} Plan"},
+                    'unit_amount': amount,
                 },
-            ],
-            mode='payment', # Or 'subscription' if you have recurring
+                'quantity': 1,
+            }],
+            mode='payment',
             success_url=DOMAIN + '/dashboard?status=active&session_id={CHECKOUT_SESSION_ID}',
             cancel_url=DOMAIN + '/pricing',
             customer_email=email,
@@ -415,106 +326,52 @@ async def create_checkout_session(email: str = Form(...), plan: str = Form(...))
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/api/process-payment")
-async def process_payment(
-    background_tasks: BackgroundTasks,
-    email: str = Form(...),
-    plan: str = Form(...),
-    card_number: str = Form(None),
-    db: Session = Depends(get_db)
-):
-    """
-    Legacy/Fallback Mock Payment Processor
-    """
-    # 1. Start or Update User
+async def process_payment(background_tasks: BackgroundTasks, email: str = Form(...), plan: str = Form(...), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == email).first()
     if not user:
         user = User(email=email)
         db.add(user)
     
-    # 2. Logic for Registration Fee
     REGISTRATION_FEE = 10
-    plan_price = 49 if "Starter" in plan else 99
-    total_amount = plan_price + REGISTRATION_FEE
-
-    # 3. Record 'Payment'
-    new_payment = Payment(
-        user_email=email,
-        amount=total_amount,
-        plan_name=plan
-    )
+    total_amount = (49 if "Starter" in plan else 99) + REGISTRATION_FEE
+    new_payment = Payment(user_email=email, amount=total_amount, plan_name=plan)
     db.add(new_payment)
-    
-    # 4. Activate User Plan
     user.plan = plan
     user.is_active = True
     db.commit()
 
-    # 5. Send Email (if configured)
-    body = f"""
-    <h1>Payment Successful!</h1>
-    <p>Hi there,</p>
-    <p>Your payment of <strong>${total_amount}</strong> was successful.</p>
-    <p>Plan: {plan} (${plan_price}/mo)</p>
-    <p>Registration Fee: ${REGISTRATION_FEE} (Paid)</p>
-    <br>
-    <p>Welcome to the family!</p>
-    """
+    body = f"<h1>Payment Successful!</h1><p>Amount: ${total_amount}</p>"
     background_tasks.add_task(send_email_background, "Welcome to Missed Call Saviour!", email, body)
-
-    # 6. (Optional) Trigger internal notification or analytics
-    # background_tasks.add_task(trigger_analytics, "new_subscription", webhook_data)
-
-    return {
-        "success": True,
-        "message": "Payment and registration successful!",
-        "redirect_url": "/dashboard?status=active"
-    }
+    return {"success": True, "message": "Payment successful!", "redirect_url": "/dashboard?status=active"}
 
 @app.post("/api/vapi/webhook")
 async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
-    """
-    Handle incoming webhooks from Vapi.ai (e.g., call logs, function calls).
-    """
     try:
         payload = await request.json()
         message_type = payload.get("message", {}).get("type") or payload.get("type")
-        
         print(f"Received Vapi Event: {message_type}")
 
         if message_type == "function-call":
-            # Example: Assistant wants to "book_appointment"
             function_name = payload.get("functionCall", {}).get("name")
             parameters = payload.get("functionCall", {}).get("parameters", {})
             
             if function_name == "book_appointment":
-                # Logic to book appointment
                 return JSONResponse(content={"result": "Appointment booked successfully for " + parameters.get("time", "tomorrow")})
-            
             elif function_name == "send_sms":
-                 # FUTURE: Integrate Twilio/SNS directly here if needed.
-                 # For now, just log it.
                  phone = parameters.get("phone")
                  message = parameters.get("message")
                  print(f"Vapi requested SMS to {phone}: {message}")
                  return JSONResponse(content={"result": "SMS logged (integration pending)"})
 
         elif message_type == "end-of-call-report":
-             # Log call summary to database
              summary = payload.get("analysis", {}).get("summary", "No summary provided.")
              recording_url = payload.get("recordingUrl")
-             
-             # Notify Admin/User via Email (simulated to Admin for now)
              admin_email = os.getenv("MAIL_USERNAME")
              if admin_email:
-                 email_body = f"""
-                 <h1>New Missed Call Handled</h1>
-                 <p><strong>Summary:</strong> {summary}</p>
-                 <p><strong>Recording:</strong> <a href="{recording_url}">Listen Here</a></p>
-                 """
+                 email_body = f"<h1>New Call</h1><p>{summary}</p><p><a href='{recording_url}'>Recording</a></p>"
                  background_tasks.add_task(send_email_background, "New Call Summary", admin_email, email_body)
 
         return {"status": "ok"}
-        
     except Exception as e:
         print(f"Error processing Vapi webhook: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
@@ -526,10 +383,34 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
         "plan": current_user.plan,
         "is_active": current_user.is_active,
         "stripe_customer_id": current_user.stripe_customer_id,
-        "registration_date": current_user.registration_date,
-        "updated_at": current_user.updated_at,
-        "last_login": current_user.last_login
+        "registration_date": current_user.registration_date
     }
+
+# Razorpay Routes
+@app.post("/api/razorpay/create-order")
+async def create_razorpay_order(email: str = Form(...), plan: str = Form(...)):
+    if not razorpay_client:
+        return JSONResponse(status_code=500, content={"error": "Razorpay not configured"})
+    amount = 4900 if "Starter" in plan else 9900
+    data = { "amount": amount, "currency": "INR", "receipt": email, "notes": {"plan": plan} }
+    try:
+        order = razorpay_client.order.create(data=data)
+        return {"id": order['id'], "amount": order['amount'], "currency": order['currency'], "key_id": RAZORPAY_KEY_ID}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/api/razorpay/verify")
+async def verify_razorpay_payment(background_tasks: BackgroundTasks, razorpay_payment_id: str = Form(...), razorpay_order_id: str = Form(...), razorpay_signature: str = Form(...), email: str = Form(...), plan: str = Form(...), db: Session = Depends(get_db)):
+    if not razorpay_client:
+        return JSONResponse(status_code=500, content={"error": "Razorpay not configured"})
+    try:
+        params_dict = {'razorpay_order_id': razorpay_order_id, 'razorpay_payment_id': razorpay_payment_id, 'razorpay_signature': razorpay_signature}
+        razorpay_client.utility.verify_payment_signature(params_dict)
+        return await process_payment(background_tasks, email, plan, db)
+    except razorpay.errors.SignatureVerificationError:
+         return JSONResponse(status_code=400, content={"error": "Payment verification failed"})
+    except Exception as e:
+         return JSONResponse(status_code=500, content={"error": str(e)})
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

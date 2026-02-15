@@ -463,7 +463,9 @@
                     </p>
 
                     <form class="demo-input-group" onsubmit="sendDemoSMS(event)">
-                        <input type="tel" id="demoPhone" placeholder="Your mobile number (e.g. +1 555...)" required>
+                        <input type="tel" id="demoPhone" placeholder="Mobile number with Country Code (e.g. +1...)"
+                            pattern="\+[0-9]+" title="Must start with + and include country code (e.g., +15550000000)"
+                            required>
                         <button type="submit" class="btn-primary"
                             style="padding: 12px 32px; border-radius: 90px; margin: 2px;">
                             Simulation
