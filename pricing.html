@@ -365,38 +365,55 @@
                 <span id="timer" class="timer-badge">04:59</span>
             </div>
 
-            <div class="pricing-grid">
+            <div class="pricing-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;">
                 <!-- Starter -->
                 <div class="price-card glass-panel">
                     <h3>Starter Plan</h3>
-                    <p style="color: var(--text-muted); font-size: 0.9rem;">Perfect for solo entrepreneurs.</p>
-                    <div class="price-amount">$49<span>/mo</span></div>
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">For individuals & demos.</p>
+                    <div class="price-amount">$10<span>/mo</span></div>
 
                     <ul class="price-features">
-                        <li>250 automated texts/mo</li>
-                        <li>1 Custom AI template</li>
-                        <li>Business-hours routing</li>
-                        <li>Basic Email Support</li>
+                        <li>100 automated texts/mo</li>
+                        <li>Basic AI template</li>
+                        <li>Standard Support</li>
                     </ul>
-                    <button onclick="openPaymentModal('Starter Plan', '$49')" class="btn-primary"
+                    <button onclick="openPaymentModal('Starter Plan', '$10')" class="btn-primary"
+                        style="display: block; width: 100%;">Get Started</button>
+                </div>
+
+                <!-- Growth -->
+                <div class="price-card popular glass-panel">
+                    <div class="badge-popular">POPULAR</div>
+                    <h3>Growth Plan</h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">For small businesses.</p>
+                    <div class="price-amount">$50<span>/mo</span></div>
+
+                    <ul class="price-features">
+                        <li>Unlimited automated texts</li>
+                        <li>Custom AI conversations</li>
+                        <li>CRM Integrations</li>
+                        <li>Priority Support</li>
+                    </ul>
+                    <button onclick="openPaymentModal('Growth Plan', '$50')" class="btn-primary"
                         style="display: block; width: 100%;">Get Started</button>
                 </div>
 
                 <!-- Pro -->
-                <div class="price-card popular glass-panel">
-                    <div class="badge-popular">MOST POPULAR</div>
-                    <h3>Professional</h3>
-                    <p style="color: var(--text-muted); font-size: 0.9rem;">For growing businesses.</p>
-                    <div class="price-amount">$99<span>/mo</span></div>
+                <div class="price-card glass-panel"
+                    style="border-color: #a855f7; box-shadow: 0 0 20px rgba(168, 85, 247, 0.2);">
+                    <h3>Pro Plan</h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">For power users & agencies.</p>
+                    <div class="price-amount">$100<span>/mo</span></div>
 
                     <ul class="price-features">
-                        <li>Unlimited automated texts</li>
-                        <li>Dynamic AI conversations</li>
-                        <li>Calendar & CRM Integration</li>
-                        <li>Priority Support</li>
+                        <li>Whitelabel Dashboard</li>
+                        <li>Advanced Analytics</li>
+                        <li>Dedicated Account Manager</li>
+                        <li>API Access</li>
                     </ul>
-                    <button onclick="openPaymentModal('Professional Plan', '$99')" class="btn-primary"
-                        style="display: block; width: 100%;">Get Started</button>
+                    <button onclick="openPaymentModal('Pro Plan', '$100')" class="btn-primary"
+                        style="display: block; width: 100%; background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%);">Get
+                        Started</button>
                 </div>
             </div>
         </section>

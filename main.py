@@ -428,8 +428,14 @@ async def process_payment(background_tasks: BackgroundTasks, email: str = Form(.
         user = User(email=email)
         db.add(user)
     
-    REGISTRATION_FEE = 10
-    total_amount = (49 if "Starter" in plan else 99) + REGISTRATION_FEE
+    # Pricing Logic (Matches Razorpay Order)
+    amount = 0
+    if "Starter" in plan: amount = 10
+    elif "Growth" in plan: amount = 50
+    elif "Pro" in plan: amount = 100
+    
+    total_amount = amount 
+    
     new_payment = Payment(user_email=email, amount=total_amount, plan_name=plan)
     db.add(new_payment)
     user.plan = plan
@@ -615,8 +621,18 @@ Your goal is to qualify leads and book appointments.
 async def create_razorpay_order(email: str = Form(...), plan: str = Form(...)):
     if not razorpay_client:
         return JSONResponse(status_code=500, content={"error": "Razorpay not configured"})
-    amount = 4900 if "Starter" in plan else 9900
-    data = { "amount": amount, "currency": "INR", "receipt": email, "notes": {"plan": plan} }
+    
+    # Pricing Logic (subunits)
+    # USD 10 -> 1000 cents
+    amount = 0
+    if "Starter" in plan: amount = 1000
+    elif "Growth" in plan: amount = 5000
+    elif "Pro" in plan: amount = 10000
+    
+    # Razorpay requires currency to charge in USD. Ensure your Razorpay account supports international payments.
+    # If not, you might need to convert to INR (e.g. 10 USD ~ 850 INR -> 85000 paise)
+    # For now, we proceed with USD as requested by user.
+    data = { "amount": amount, "currency": "USD", "receipt": email, "notes": {"plan": plan} }
     try:
         order = razorpay_client.order.create(data=data)
         return {"id": order['id'], "amount": order['amount'], "currency": order['currency'], "key_id": RAZORPAY_KEY_ID}
