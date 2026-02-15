@@ -49,6 +49,9 @@ else:
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# --- Initialize App ---
+app = FastAPI(title="Missed Call Saviour Backend")
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -159,9 +162,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-# --- Initialize App ---
-app = FastAPI(title="Missed Call Saviour Backend")
 
 # --- Auth Helpers ---
 def verify_password(plain_password, hashed_password):
