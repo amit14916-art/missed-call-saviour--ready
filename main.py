@@ -21,8 +21,8 @@ load_dotenv()
 
 # --- Configuration ---
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
-DOMAIN = "http://127.0.0.1:8000"
-MAKE_WEBHOOK_URL = os.getenv("MAKE_WEBHOOK_URL")
+DOMAIN = os.getenv("DOMAIN", "http://127.0.0.1:8000")
+
 
 RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
 RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
@@ -110,7 +110,9 @@ class User(Base):
     hashed_password = Column(String)
     plan = Column(String, default="Free")
     is_active = Column(Boolean, default=False)
-    registration_date = Column(DateTime, default=datetime.utcnow)
+    registration_date = Column(DateTime, default=datetime.utcnow) # Created At
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login = Column(DateTime, nullable=True)
     stripe_customer_id = Column(String, nullable=True)
     
 class Payment(Base):
@@ -169,7 +171,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     return user
 
 # Email Config
-# Email Config
 conf = None
 if os.getenv("MAIL_USERNAME") and os.getenv("MAIL_PASSWORD"):
     conf = ConnectionConfig(
@@ -187,26 +188,55 @@ if os.getenv("MAIL_USERNAME") and os.getenv("MAIL_PASSWORD"):
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-async def trigger_make_webhook(event_type: str, data: dict):
+async def trigger_vapi_outbound_call(phone: str, message: str = None):
     """
-    Sends data to Make.com webhook
+    Triggers an outbound call using Vapi.ai API
     """
-    if not MAKE_WEBHOOK_URL or "your-webhook-id" in MAKE_WEBHOOK_URL:
-        print(f"Skipping Make.com webhook (not configured): {event_type}")
+    vapi_url = "https://api.vapi.ai/call"
+    vapi_private_key = os.getenv("VAPI_PRIVATE_KEY")
+    vapi_assistant_id = os.getenv("VAPI_ASSISTANT_ID")
+    
+    if not vapi_private_key or not vapi_assistant_id:
+        print("Skipping Vapi call (not configured): Missing VAPI_PRIVATE_KEY or VAPI_ASSISTANT_ID")
         return
 
     payload = {
-        "event": event_type,
-        "timestamp": datetime.utcnow().isoformat(),
-        "data": data
+      "assistantId": vapi_assistant_id,
+      "customer": {
+        "number": phone
+      },
+      "phoneNumberId": os.getenv("VAPI_PHONE_NUMBER_ID"), # Ideally add this to .env too
+    }
+    
+    if message:
+         # Optionally inject the message as a variable if your assistant is configured to use it
+         # or override the first message
+         payload["assistant"] = {
+             "firstMessage": message,
+              "model": {
+                 "provider": "openai",
+                 "model": "gpt-3.5-turbo",
+                 "messages": [
+                     {
+                         "role": "system",
+                         "content": "You are a helpful assistant."
+                     }
+                 ]
+             }
+         }
+
+    headers = {
+        "Authorization": f"Bearer {vapi_private_key}",
+        "Content-Type": "application/json"
     }
 
     try:
         async with httpx.AsyncClient() as client:
-            await client.post(MAKE_WEBHOOK_URL, json=payload)
-            print(f"Successfully triggered Make.com webhook for {event_type}")
+            response = await client.post(vapi_url, json=payload, headers=headers)
+            response.raise_for_status()
+            print(f"Successfully triggered Vapi call to {phone}")
     except Exception as e:
-        print(f"Failed to trigger Make.com webhook: {e}")
+        print(f"Failed to trigger Vapi call: {e}")
 
 # --- Helper Functions ---
 async def send_email_background(subject: str, email_to: str, body: str):
@@ -269,6 +299,11 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    # Update Last Login
+    user.last_login = datetime.utcnow()
+    db.commit()
+    
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.email}, expires_delta=access_token_expires
@@ -283,7 +318,12 @@ async def signup(background_tasks: BackgroundTasks, email: str = Form(...), pass
              raise HTTPException(status_code=400, detail="Email already registered")
         
         hashed_password = get_password_hash(password)
-        new_user = User(email=email, hashed_password=hashed_password)
+        new_user = User(
+            email=email, 
+            hashed_password=hashed_password,
+            registration_date=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
         db.add(new_user)
         db.commit()
         
@@ -322,24 +362,17 @@ async def read_dashboard():
     with open(os.path.join(BASE_DIR, "dashboard.html"), "r", encoding="utf-8") as f:
         return f.read()
 
-@app.post("/api/send-demo-sms")
-async def send_demo_sms(background_tasks: BackgroundTasks, phone: str = Form(...)):
+@app.post("/api/send-demo-call")
+async def send_demo_call(background_tasks: BackgroundTasks, phone: str = Form(...)):
     """
-    Simulates sending a demo SMS.
-    Triggers Make.com to actually send it if configured there.
+    Triggers a demo call via Vapi.ai.
     """
-    print(f"Received demo SMS request for: {phone}")
+    print(f"Received demo Call request for: {phone}")
     
-    webhook_data = {
-        "phone": phone,
-        "type": "demo_request",
-        "message": "Hey! This is your Missed Call Saviour demo. Imagine this text just saved you a customer."
-    }
+    # Send to Vapi.ai to handle the actual Call
+    background_tasks.add_task(trigger_vapi_outbound_call, phone, "Hello! This is your Missed Call Saviour demo. I can help recover lost revenue.")
     
-    # Send to Make.com to handle the actual SMS (via Twilio/etc connected to Make)
-    background_tasks.add_task(trigger_make_webhook, "demo_sms_request", webhook_data)
-    
-    return {"success": True, "message": "Demo SMS queued."}
+    return {"success": True, "message": "Demo call queued."}
 
 @app.post("/api/create-checkout-session")
 async def create_checkout_session(email: str = Form(...), plan: str = Form(...)):
@@ -428,14 +461,8 @@ async def process_payment(
     """
     background_tasks.add_task(send_email_background, "Welcome to Missed Call Saviour!", email, body)
 
-    # 6. Trigger Make.com Webhook
-    webhook_data = {
-        "email": email,
-        "plan": plan,
-        "amount": total_amount,
-        "status": "paid"
-    }
-    background_tasks.add_task(trigger_make_webhook, "new_subscription", webhook_data)
+    # 6. (Optional) Trigger internal notification or analytics
+    # background_tasks.add_task(trigger_analytics, "new_subscription", webhook_data)
 
     return {
         "success": True,
@@ -464,19 +491,17 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                 return JSONResponse(content={"result": "Appointment booked successfully for " + parameters.get("time", "tomorrow")})
             
             elif function_name == "send_sms":
-                 # Trigger Make.com to send SMS
+                 # FUTURE: Integrate Twilio/SNS directly here if needed.
+                 # For now, just log it.
                  phone = parameters.get("phone")
                  message = parameters.get("message")
-                 background_tasks.add_task(trigger_make_webhook, "vapi_sms_request", {"phone": phone, "message": message})
-                 return JSONResponse(content={"result": "SMS sent successfully"})
+                 print(f"Vapi requested SMS to {phone}: {message}")
+                 return JSONResponse(content={"result": "SMS logged (integration pending)"})
 
         elif message_type == "end-of-call-report":
-             # Log call summary to database/Make.com
+             # Log call summary to database
              summary = payload.get("analysis", {}).get("summary", "No summary provided.")
              recording_url = payload.get("recordingUrl")
-             
-             # Notify Make.com
-             background_tasks.add_task(trigger_make_webhook, "call_completed", {"summary": summary, "recording": recording_url})
              
              # Notify Admin/User via Email (simulated to Admin for now)
              admin_email = os.getenv("MAIL_USERNAME")
@@ -500,7 +525,10 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
         "email": current_user.email,
         "plan": current_user.plan,
         "is_active": current_user.is_active,
-        "stripe_customer_id": current_user.stripe_customer_id
+        "stripe_customer_id": current_user.stripe_customer_id,
+        "registration_date": current_user.registration_date,
+        "updated_at": current_user.updated_at,
+        "last_login": current_user.last_login
     }
 
 if __name__ == "__main__":

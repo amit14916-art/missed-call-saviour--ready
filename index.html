@@ -4,160 +4,430 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Missed Call Saviour | Defy the Gravity of Lost Sales</title>
+    <title>Missed Call Saviour | AI Revenue Recovery</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;800&display=swap" rel="stylesheet">
     <style>
-        /* Base Styles & Antigravity Vibe */
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #0b0f19;
-            /* Deep space dark */
-            color: #e2e8f0;
-            line-height: 1.6;
+        :root {
+            --bg-dark: #050a14;
+            --bg-card: rgba(30, 41, 59, 0.4);
+            --primary-gradient: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --accent-glow: rgba(0, 198, 255, 0.5);
+            --glass-border: rgba(255, 255, 255, 0.08);
         }
 
-        h1,
-        h2,
-        h3 {
-            color: #ffffff;
+        /* Base Styles */
+        body {
+            font-family: 'Outfit', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+            background-image:
+                radial-gradient(circle at 10% 20%, rgba(0, 198, 255, 0.03) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(0, 114, 255, 0.03) 0%, transparent 40%);
         }
 
         a {
             text-decoration: none;
-            color: #00d2ff;
+            color: inherit;
+            transition: color 0.3s;
         }
 
         .container {
-            max-width: 1100px;
+            max-width: 1200px;
             margin: 0 auto;
-            padding: 0 20px;
+            padding: 0 24px;
         }
 
-        /* Buttons */
-        .btn-primary {
-            display: inline-block;
-            background: linear-gradient(45deg, #00d2ff, #3a7bd5);
-            color: white;
-            padding: 15px 30px;
-            border-radius: 30px;
-            font-weight: bold;
-            font-size: 1.1em;
-            text-transform: uppercase;
-            box-shadow: 0 4px 15px rgba(0, 210, 255, 0.4);
-            transition: transform 0.2s, box-shadow 0.2s;
-            border: none;
-            cursor: pointer;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(0, 210, 255, 0.6);
+        /* Glassmorphism Utilities */
+        .glass-panel {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
         }
 
         /* Nav */
         nav {
-            padding: 20px 0;
+            padding: 24px 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            position: relative;
+            z-index: 100;
         }
 
         .logo {
-            font-size: 1.5em;
-            font-weight: bold;
-            background: -webkit-linear-gradient(#00d2ff, #3a7bd5);
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: var(--primary-gradient);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
+            letter-spacing: -0.02em;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 32px;
         }
 
         .nav-links a {
-            margin-left: 20px;
             font-weight: 500;
-            font-size: 1em;
-            color: #cbd5e1;
+            color: var(--text-muted);
+            font-size: 0.95rem;
         }
 
         .nav-links a:hover,
         .nav-links a.active {
-            color: #00d2ff;
+            color: #fff;
         }
 
-        /* Hero Section */
+        .btn-primary {
+            background: var(--primary-gradient);
+            color: white !important;
+            padding: 12px 28px;
+            border-radius: 100px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 10px 20px -5px rgba(0, 198, 255, 0.4);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            display: inline-block;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 15px 30px -8px rgba(0, 198, 255, 0.6);
+        }
+
+        /* Hero */
         .hero {
             text-align: center;
-            padding: 80px 0 60px;
+            padding: 120px 0 100px;
+            position: relative;
         }
 
         .hero h1 {
-            font-size: 3.5em;
-            margin-bottom: 20px;
-            line-height: 1.2;
+            font-size: 4.5rem;
+            line-height: 1.1;
+            margin-bottom: 24px;
+            letter-spacing: -0.03em;
+            font-weight: 800;
+            background: linear-gradient(to bottom, #fff 40%, rgba(255, 255, 255, 0.5));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         .hero p {
-            font-size: 1.2em;
-            color: #a0aec0;
-            max-width: 700px;
+            font-size: 1.25rem;
+            color: var(--text-muted);
+            max-width: 600px;
             margin: 0 auto 40px;
+            font-weight: 300;
         }
 
-        /* Sections */
-        section {
-            padding: 80px 0;
-            border-bottom: 1px solid #1e293b;
+        /* Hero Glow Animation */
+        .hero-glow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(0, 198, 255, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+            z-index: -1;
+            pointer-events: none;
+            animation: pulse-glow 6s infinite ease-in-out;
         }
 
-        .section-title {
+        @keyframes pulse-glow {
+
+            0%,
+            100% {
+                opacity: 0.5;
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            50% {
+                opacity: 0.8;
+                transform: translate(-50%, -50%) scale(1.2);
+            }
+        }
+
+        /* Live Demo Section */
+        .live-demo {
+            margin: 0 auto 100px;
+            max-width: 800px;
+            position: relative;
+        }
+
+        .demo-interface {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px;
             text-align: center;
-            font-size: 2.5em;
-            margin-bottom: 50px;
         }
 
-        /* Features Grid */
+        .demo-input-group {
+            display: flex;
+            width: 100%;
+            max-width: 480px;
+            position: relative;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 100px;
+            padding: 6px;
+            border: 1px solid var(--glass-border);
+            margin-top: 30px;
+        }
+
+        .demo-input-group input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            padding: 16px 24px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 1rem;
+            outline: none;
+        }
+
+        .demo-input-group input::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .status-msg {
+            margin-top: 16px;
+            color: #4ade80;
+            font-size: 0.9rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        /* Features */
+        .features {
+            padding: 100px 0;
+            border-top: 1px solid var(--glass-border);
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 80px;
+        }
+
+        .section-header h2 {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
+        }
+
         .grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 30px;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
         }
 
-        .card {
-            background: #1e293b;
-            padding: 30px;
-            border-radius: 15px;
+        .feature-card {
+            padding: 40px;
+            transition: transform 0.3s, border-color 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(0, 198, 255, 0.3);
+        }
+
+        .feature-icon {
+            font-size: 2rem;
+            margin-bottom: 24px;
+            display: inline-block;
+            background: rgba(0, 198, 255, 0.1);
+            width: 60px;
+            height: 60px;
+            line-height: 60px;
+            text-align: center;
+            border-radius: 16px;
+            color: #00c6ff;
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            margin-bottom: 12px;
+            color: #fff;
+        }
+
+        .feature-card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        /* AI Report Section (Split Layout) */
+        .split-section {
+            display: flex;
+            align-items: center;
+            gap: 60px;
+            padding: 100px 0;
+        }
+
+        .split-content {
+            flex: 1;
+        }
+
+        .split-visual {
+            flex: 1;
+            transform: perspective(1000px) rotateY(-5deg);
+            transition: transform 0.5s;
+        }
+
+        .split-visual:hover {
+            transform: perspective(1000px) rotateY(0deg);
+        }
+
+        .bg-gradient-text {
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+        }
+
+        ul.check-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 32px;
+        }
+
+        ul.check-list li {
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            color: var(--text-muted);
+        }
+
+        ul.check-list li .icon {
+            color: #4ade80;
+            margin-right: 12px;
+            background: rgba(74, 222, 128, 0.1);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+        }
+
+        /* Mock UI */
+        .mock-ui {
+            background: #0f172a;
+            border-radius: 16px;
             border: 1px solid #334155;
+            padding: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            font-family: 'Inter', sans-serif;
+            /* Tech feel for UI */
         }
 
-        .card h3 {
-            margin-top: 0;
-            color: #00d2ff;
+        .tag {
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            text-transform: uppercase;
         }
 
-        /* FAQ */
-        .faq-item {
-            margin-bottom: 30px;
-            background: #1e293b;
-            padding: 20px;
-            border-radius: 10px;
+        .tag.success {
+            background: rgba(74, 222, 128, 0.15);
+            color: #4ade80;
         }
 
-        .faq-item h4 {
-            margin-top: 0;
-            color: #00d2ff;
-            font-size: 1.2em;
+        .tag.warning {
+            background: rgba(251, 191, 36, 0.15);
+            color: #fbbf24;
+        }
+
+        .tag.info {
+            background: rgba(56, 189, 248, 0.15);
+            color: #38bdf8;
         }
 
         /* Footer */
         footer {
+            border-top: 1px solid var(--glass-border);
+            padding: 60px 0;
             text-align: center;
-            padding: 40px 0;
-            color: #64748b;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* Sales Popup */
+        .sales-popup {
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            gap: 16px;
+            z-index: 1000;
+            transform: translateY(150%);
+            transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+        }
+
+        .sales-popup.show {
+            transform: translateY(0);
+        }
+
+        .popup-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: var(--primary-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        /* Mobile Res */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 3rem;
+            }
+
+            .split-section {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .split-visual {
+                transform: none;
+                width: 100%;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            /* Simplified for mobile */
         }
     </style>
 </head>
 
 <body>
 
+    <!-- Nav -->
     <div class="container">
         <nav>
             <a href="/" class="logo">Missed Call Saviour</a>
@@ -165,333 +435,233 @@
                 <a href="/" class="active">Home</a>
                 <a href="/roi">ROI Calculator</a>
                 <a href="/pricing">Pricing</a>
-                <a href="/dashboard" class="btn-primary"
-                    style="padding: 10px 20px; font-size: 0.9em; margin-left: 20px; color: white;">Dashboard</a>
+                <a href="/login">Login</a>
+                <a href="/dashboard" class="btn-primary" style="padding: 10px 24px; font-size: 0.9rem;">Dashboard</a>
             </div>
         </nav>
+    </div>
 
-        <style>
-            /* Futuristic Background Animation */
-            .hero {
-                position: relative;
-                overflow: hidden;
-            }
+    <!-- Hero -->
+    <header class="hero">
+        <div class="hero-glow"></div>
+        <div class="container">
+            <h1>Defy the Gravity of <br> <span class="bg-gradient-text">Lost Sales.</span></h1>
+            <p>Don't let missed calls pull your revenue down. Deploy an autonomous AI agent that instantly captures
+                leads, books meetings, and answers questions 24/7.</p>
 
-            .hero::before {
-                content: '';
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                width: 600px;
-                height: 600px;
-                background: radial-gradient(circle, rgba(0, 210, 255, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
-                transform: translate(-50%, -50%);
-                z-index: -1;
-                animation: pulse 5s infinite ease-in-out;
-            }
-
-            @keyframes pulse {
-                0% {
-                    transform: translate(-50%, -50%) scale(1);
-                    opacity: 0.8;
-                }
-
-                50% {
-                    transform: translate(-50%, -50%) scale(1.2);
-                    opacity: 0.4;
-                }
-
-                100% {
-                    transform: translate(-50%, -50%) scale(1);
-                    opacity: 0.8;
-                }
-            }
-
-            /* Live Demo Section */
-            .live-demo {
-                background: linear-gradient(180deg, #0b0f19 0%, #111827 100%);
-                padding: 60px 20px;
-                text-align: center;
-                border-top: 1px solid #1e293b;
-                border-bottom: 1px solid #1e293b;
-                margin-bottom: 80px;
-            }
-
-            .demo-input-group {
-                display: flex;
-                justify-content: center;
-                gap: 10px;
-                max-width: 500px;
-                margin: 30px auto 0;
-            }
-
-            .demo-input-group input {
-                flex: 1;
-                padding: 15px;
-                border-radius: 30px;
-                border: 1px solid #334155;
-                background: #0f172a;
-                color: white;
-                outline: none;
-            }
-
-            .demo-input-group input:focus {
-                border-color: #00d2ff;
-                box-shadow: 0 0 10px rgba(0, 210, 255, 0.3);
-            }
-
-            /* Sales Popup */
-            .sales-popup {
-                position: fixed;
-                bottom: 20px;
-                left: 20px;
-                background: rgba(30, 41, 59, 0.9);
-                backdrop-filter: blur(10px);
-                padding: 15px 20px;
-                border-radius: 12px;
-                border: 1px solid #334155;
-                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-                display: flex;
-                align-items: center;
-                gap: 15px;
-                z-index: 1000;
-                transform: translateY(100px);
-                opacity: 0;
-                transition: all 0.5s ease;
-            }
-
-            .sales-popup.show {
-                transform: translateY(0);
-                opacity: 1;
-            }
-
-            .sales-icon {
-                width: 40px;
-                height: 40px;
-                background: linear-gradient(45deg, #00d2ff, #3a7bd5);
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 1.2em;
-            }
-        </style>
-
-        <header class="hero">
-            <h1>Defy the Gravity of <br><span
-                    style="background: -webkit-linear-gradient(#00d2ff, #3a7bd5); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Lost
-                    Sales.</span></h1>
-            <p>Every missed call drags your revenue down to earth. Missed Call Saviour acts as your business's
-                antigravity engine, instantly texting back missed calls so your leads—and your profits—keep soaring.</p>
-            <div style="margin-top: 30px;">
-                <a href="/pricing" class="btn-primary" style="margin-right: 20px;">Get Started Now</a>
-                <a href="#live-demo" style="color: #cbd5e1; text-decoration: underline;">Try the Live Demo</a>
+            <div style="display: flex; gap: 16px; justify-content: center; margin-bottom: 60px;">
+                <a href="/pricing" class="btn-primary">Start Recovery Now</a>
+                <a href="#live-demo"
+                    style="padding: 12px 28px; border-radius: 100px; border: 1px solid rgba(255,255,255,0.2); font-weight: 500;">Try
+                    Interactive Demo</a>
             </div>
-        </header>
 
-        <section id="live-demo" class="live-demo">
-            <h2 style="font-size: 2em; margin-bottom: 10px;">See It In Action</h2>
-            <p style="color: #a0aec0;">Enter your phone number to receive a real-time AI response simulation.</p>
+            <div id="live-demo" class="live-demo glass-panel">
+                <div class="demo-interface">
+                    <h3 style="margin: 0 0 8px 0; font-size: 1.5rem;">See It In Action</h3>
+                    <p style="color: var(--text-muted); margin: 0;">Enter your number. Our AI will text you instantly.
+                    </p>
 
-            <form class="demo-input-group" onsubmit="sendDemoSMS(event)">
-                <input type="tel" id="demoPhone" placeholder="Enter your mobile number (e.g. +1...)" required>
-                <button type="submit" class="btn-primary" style="padding: 15px 30px; border-radius: 30px;">Send
-                    Test</button>
-            </form>
-            <p id="demoStatus" style="margin-top: 20px; color: #34d399; display: none;">✓ SMS Sent! Check your phone.
-            </p>
-        </section>
-
-        <!-- Social Proof Simulation -->
-        <div id="salesPopup" class="sales-popup">
-            <div class="sales-icon">🚀</div>
-            <div>
-                <div style="font-weight: bold; color: white;">New Professional User</div>
-                <div style="color: #94a3b8; font-size: 0.9em;">From New York, just satarted.</div>
+                    <form class="demo-input-group" onsubmit="sendDemoSMS(event)">
+                        <input type="tel" id="demoPhone" placeholder="Your mobile number (e.g. +1 555...)" required>
+                        <button type="submit" class="btn-primary"
+                            style="padding: 12px 32px; border-radius: 90px; margin: 2px;">
+                            Simulation
+                        </button>
+                    </form>
+                    <div id="demoStatus" class="status-msg">✓ Signal Sent. Check your device.</div>
+                </div>
             </div>
         </div>
+    </header>
 
-        <script>
-            // Live Demo Logic
-            async function sendDemoSMS(e) {
-                e.preventDefault();
-                const btn = e.target.querySelector('button');
-                const status = document.getElementById('demoStatus');
-                const phone = document.getElementById('demoPhone').value;
+    <!-- Features -->
+    <section class="features">
+        <div class="container">
+            <div class="section-header">
+                <h2>Autonomous Revenue Engine</h2>
+                <p style="color: var(--text-muted);">Features designed to keep your pipeline moving forward, always.</p>
+            </div>
 
-                btn.innerText = "Sending...";
-                btn.disabled = true;
-
-                try {
-                    const formData = new FormData();
-                    formData.append('phone', phone);
-
-                    const response = await fetch('/api/send-demo-sms', {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    if (response.ok) {
-                        btn.innerText = "Sent!";
-                        status.style.display = "block";
-                        // Reset after 3s
-                        setTimeout(() => {
-                            btn.innerText = "Send Test";
-                            btn.disabled = false;
-                            status.style.display = "none";
-                        }, 3000);
-                    }
-                } catch (err) {
-                    console.error(err);
-                    btn.innerText = "Error";
-                }
-            }
-
-            // Sales Ticker Logic
-            const locations = ["New York", "London", "Austin", "Toronto", "Berlin", "Sydney"];
-            const plans = ["Starter Plan", "Professional Plan"];
-
-            function showSale() {
-                const popup = document.getElementById('salesPopup');
-                const loc = locations[Math.floor(Math.random() * locations.length)];
-                const plan = plans[Math.floor(Math.random() * plans.length)];
-
-                popup.querySelector('div > div:first-child').innerText = `New ${plan} User`;
-                popup.querySelector('div > div:last-child').innerText = `From ${loc}, just joined.`;
-
-                popup.classList.add('show');
-
-                setTimeout(() => {
-                    popup.classList.remove('show');
-                }, 4000);
-
-                // Random interval between 10-20 seconds
-                setTimeout(showSale, Math.random() * 10000 + 10000);
-            }
-
-            setTimeout(showSale, 5000);
-        </script>
-
-        <section id="features">
-            <h2 class="section-title">An Autonomous Agent That Works While You Do</h2>
             <div class="grid">
-                <div class="card">
-                    <h3>Context-Aware Texting</h3>
-                    <p>Deploy conversational AI that understands what your callers need, customizing its response based
-                        on your specific business rules.</p>
+                <div class="feature-card glass-panel">
+                    <div class="feature-icon">💬</div>
+                    <h3>Context-Aware AI</h3>
+                    <p>It doesn't just "reply". It understands intent, detecting urgent leads vs. casual inquiries, and
+                        responds accordingly.</p>
                 </div>
-                <div class="card">
-                    <h3>Calendar & CRM Integration</h3>
-                    <p>Turn a missed call into a booked meeting on autopilot. The automated SMS provides direct links to
-                        your booking calendar.</p>
+                <div class="feature-card glass-panel">
+                    <div class="feature-icon">📅</div>
+                    <h3>Instant Booking</h3>
+                    <p>Stop playing phone tag. The AI sends your calendar link immediately, turning a missed call into a
+                        booked meeting.</p>
                 </div>
-                <div class="card">
-                    <h3>After-Hours Rescue</h3>
-                    <p>Your business hours end, but customer needs don't. Capture leads 24/7 and wake up to a pipeline
-                        full of warm prospects.</p>
-                </div>
-            </div>
-        </section>
-
-        <section id="ai-reports" style="background: #151e2e;">
-            <h2 class="section-title">Detailed AI Interaction Reports</h2>
-            <div class="container" style="display: flex; gap: 40px; align-items: center; flex-wrap: wrap;">
-                <div style="flex: 1; min-width: 300px;">
-                    <h3 style="color: #00d2ff; font-size: 1.8em; margin-bottom: 20px;">Know Exactly What Happened</h3>
-                    <p style="font-size: 1.1em; color: #a0aec0; margin-bottom: 30px;">
-                        Stop guessing why they called. Our AI generates a comprehensive report for every interaction,
-                        instantly synced to your dashboard and email.
+                <div class="feature-card glass-panel">
+                    <div class="feature-icon">🛡️</div>
+                    <h3>24/7 Safety Net</h3>
+                    <p>Your business hours end, but customer demand doesn't. Capture late-night intent while you sleep.
                     </p>
-                    <ul style="list-style: none; padding: 0;">
-                        <li style="margin-bottom: 15px; display: flex; align-items: center;">
-                            <span style="color: #34d399; margin-right: 10px;">✔</span>
-                            <strong style="color: #e2e8f0; margin-right: 5px;">Sentiment Analysis:</strong> <span
-                                style="color: #94a3b8;">Was the caller frustrated or happy?</span>
-                        </li>
-                        <li style="margin-bottom: 15px; display: flex; align-items: center;">
-                            <span style="color: #34d399; margin-right: 10px;">✔</span>
-                            <strong style="color: #e2e8f0; margin-right: 5px;">Call Summary:</strong> <span
-                                style="color: #94a3b8;">Instant 3-bullet point breakdown.</span>
-                        </li>
-                        <li style="margin-bottom: 15px; display: flex; align-items: center;">
-                            <span style="color: #34d399; margin-right: 10px;">✔</span>
-                            <strong style="color: #e2e8f0; margin-right: 5px;">Action Items:</strong> <span
-                                style="color: #94a3b8;">"Schedule follow-up", "Send quote", etc.</span>
-                        </li>
-                    </ul>
                 </div>
+            </div>
+        </div>
+    </section>
 
-                <!-- Mock Report UI -->
-                <div
-                    style="flex: 1; min-width: 300px; background: #0b0f19; padding: 25px; border-radius: 15px; border: 1px solid #334155; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+    <!-- Deep Dive / Split Section -->
+    <section
+        style="background: rgba(0,0,0,0.2); border-top: 1px solid var(--glass-border); border-bottom: 1px solid var(--glass-border);">
+        <div class="container split-section">
+            <div class="split-content">
+                <h2 style="font-size: 2.5rem; line-height: 1.2; margin-bottom: 24px;">Intelligence <br> Beyond The Call.
+                </h2>
+                <p style="color: var(--text-muted); font-size: 1.1rem;">
+                    Every interaction is analyzed. You don't just get a "missed call notification"—you get a full
+                    intelligence report.
+                </p>
+
+                <ul class="check-list">
+                    <li>
+                        <div class="icon">✓</div>
+                        <div><strong>Sentiment Analysis:</strong> Know if the caller was frustrated or happy.</div>
+                    </li>
+                    <li>
+                        <div class="icon">✓</div>
+                        <div><strong>Auto-Summarization:</strong> Get the 3-bullet point gist instantly.</div>
+                    </li>
+                    <li>
+                        <div class="icon">✓</div>
+                        <div><strong>Actionable Next Steps:</strong> "Needs a quote sent by Tuesday."</div>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="split-visual">
+                <div class="mock-ui glass-panel">
                     <div
-                        style="display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 15px; margin-bottom: 15px;">
-                        <span style="color: #cbd5e1; font-weight: bold;">New Lead: +1 (555) 019-2834</span>
-                        <span
-                            style="background: rgba(16, 185, 129, 0.2); color: #34d399; padding: 2px 10px; border-radius: 10px; font-size: 0.8em;">High
-                            Intent</span>
-                    </div>
-                    <div style="margin-bottom: 15px;">
-                        <div style="font-size: 0.9em; color: #64748b; margin-bottom: 5px;">SUMMARY</div>
-                        <p
-                            style="background: #1e293b; padding: 10px; border-radius: 8px; font-size: 0.9em; color: #e2e8f0; margin: 0;">
-                            Caller asked about "Professional Plan" pricing and availability for a dental clinic. Wants a
-                            demo next Tuesday.
-                        </p>
-                    </div>
-                    <div style="display: flex; gap: 10px;">
-                        <div style="flex: 1;">
-                            <div style="font-size: 0.9em; color: #64748b; margin-bottom: 5px;">SENTIMENT</div>
-                            <div
-                                style="background: #1e293b; padding: 10px; border-radius: 8px; color: #00d2ff; text-align: center;">
-                                Positive 🚀</div>
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <div>
+                            <div style="font-weight: 600; font-size: 0.95rem;">Incoming Lead</div>
+                            <div style="font-size: 0.8rem; color: #64748b;">+1 (555) 012-3456 • 2 mins ago</div>
                         </div>
-                        <div style="flex: 1;">
-                            <div style="font-size: 0.9em; color: #64748b; margin-bottom: 5px;">NEXT STEP</div>
-                            <div
-                                style="background: #1e293b; padding: 10px; border-radius: 8px; color: #fbbf24; text-align: center;">
-                                Book Demo</div>
+                        <span class="tag success">High Intent</span>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <div
+                            style="font-size: 0.75rem; color: #64748b; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.05em;">
+                            AI SUMMARY</div>
+                        <div
+                            style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px; font-size: 0.9rem; color: #cbd5e1; line-height: 1.5;">
+                            Caller asked about the "Enterprise Plan" pricing for a dental clinic chain. Requested a demo
+                            for next Tuesday afternoon.
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 12px;">
+                        <div
+                            style="flex: 1; background: rgba(56, 189, 248, 0.1); padding: 12px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 0.7rem; color: #38bdf8; margin-bottom: 4px;">SENTIMENT</div>
+                            <div style="font-weight: 600; font-size: 0.9rem;">Positive 🚀</div>
+                        </div>
+                        <div
+                            style="flex: 1; background: rgba(251, 191, 36, 0.1); padding: 12px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 0.7rem; color: #fbbf24; margin-bottom: 4px;">ACTION</div>
+                            <div style="font-weight: 600; font-size: 0.9rem;">Book Demo</div>
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
+    </section>
 
-        </section>
-
-        <section id="faq">
-            <h2 class="section-title">Frequently Asked Questions</h2>
-            <div class="container" style="max-width: 800px;">
-                <div class="faq-item">
-                    <h4>How secure is the payment?</h4>
-                    <p>We use industry-standard encryption. Your card details are never stored on our servers.</p>
-                </div>
-                <div class="faq-item">
-                    <h4>Can I cancel anytime?</h4>
-                    <p>Yes, there are no long-term contracts. You can cancel your subscription from your dashboard
-                        at
-                        any time.</p>
-                </div>
-                <div class="faq-item">
-                    <h4>Do I need to port my current business phone number?</h4>
-                    <p>No porting required. We integrate with your existing telecom setup, acting as an invisible
-                        safety
-                        net.</p>
-                </div>
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div style="margin-bottom: 20px;">
+                <span class="logo" style="font-size: 1.2rem;">Missed Call Saviour</span>
             </div>
-        </section>
+            <p>&copy; 2026 Agentic AI World. All systems nominal.</p>
+            <div style="margin-top: 20px; display: flex; gap: 24px; justify-content: center;">
+                <a href="/privacy">Privacy Policy</a>
+                <a href="/terms">Terms of Service</a>
+                <a href="https://autonumworld.in" target="_blank">autonumworld.in</a>
+            </div>
+        </div>
+    </footer>
 
-        <footer
-            style="text-align: center; padding: 40px 0; color: #64748b; border-top: 1px solid #1e293b; margin-top: 50px;">
-            <p>&copy; 2026 Missed Call Saviour. A project by Agentic AI World.</p>
-            <p>
-                <a href="/privacy" style="color: #64748b; text-decoration: none; margin: 0 10px;">Privacy Policy</a> |
-                <a href="/terms" style="color: #64748b; text-decoration: none; margin: 0 10px;">Terms of Service</a>
-            </p>
-            <p><a href="https://autonumworld.in" style="color: #64748b; text-decoration: underline;">autonumworld.in</a>
-            </p>
-        </footer>
+    <!-- Social Proof Notification -->
+    <div id="salesPopup" class="sales-popup glass-panel">
+        <div class="popup-icon">🚀</div>
+        <div>
+            <div style="font-weight: 600; font-size: 0.95rem;" id="popupTitle">New Subscriber</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);" id="popupDesc">From New York, just joined.</div>
+        </div>
     </div>
+
     <script src="/chatbot.js"></script>
+    <script>
+        // Live Demo Logic
+        async function sendDemoSMS(e) {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            const status = document.getElementById('demoStatus');
+            const phone = document.getElementById('demoPhone').value;
+            const originalText = btn.innerText;
+
+            btn.innerText = "Transmitting...";
+            btn.style.opacity = "0.7";
+            btn.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('phone', phone);
+
+                const response = await fetch('/api/send-demo-call', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    btn.innerText = "Sent";
+                    status.style.opacity = "1";
+
+                    setTimeout(() => {
+                        btn.innerText = originalText;
+                        btn.style.opacity = "1";
+                        btn.disabled = false;
+                        status.style.opacity = "0";
+                    }, 4000);
+                }
+            } catch (err) {
+                console.error(err);
+                btn.innerText = "Failed";
+                setTimeout(() => btn.innerText = originalText, 2000);
+            }
+        }
+
+        // Social Proof Logic
+        const locations = ["London", "Austin", "Toronto", "Berlin", "Sydney", "Singapore", "New York"];
+        const plans = ["Starter Plan", "Pro Plan"];
+
+        function showSale() {
+            const popup = document.getElementById('salesPopup');
+            const loc = locations[Math.floor(Math.random() * locations.length)];
+            const plan = plans[Math.floor(Math.random() * plans.length)];
+
+            document.getElementById('popupTitle').innerText = `New ${plan} User`;
+            document.getElementById('popupDesc').innerText = `Active in ${loc}`;
+
+            popup.classList.add('show');
+
+            setTimeout(() => {
+                popup.classList.remove('show');
+            }, 5000);
+
+            // Random loop
+            setTimeout(showSale, Math.random() * 15000 + 10000);
+        }
+
+        setTimeout(showSale, 5000);
+    </script>
 </body>
 
 </html>

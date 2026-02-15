@@ -24,11 +24,14 @@ It's super easy and **Free**. Follow these steps:
     Click **"Advanced"** -> **"Add Environment Variable"**. Add these from your `.env` file (OPEN THEM IN VS CODE AND COPY-PASTE):
     *   `SECRET_KEY`: (your secret key)
     *   `STRIPE_SECRET_KEY`: (if you have one, or just put 'dummy')
-    *   `MAKE_WEBHOOK_URL`: (your make.com url)
+    *   `VAPI_PRIVATE_KEY`: (your vapi private key)
+    *   `VAPI_ASSISTANT_ID`: (your vapi assistant id)
+    *   `VAPI_PHONE_NUMBER_ID`: (your vapi phone number id)
     *   `MAIL_USERNAME`: (your email)
     *   `MAIL_PASSWORD`: (your app password)
     *   `RAZORPAY_KEY_ID`: (your key)
     *   `RAZORPAY_KEY_SECRET`: (your secret)
+    *   `DOMAIN`: https://your-app-name.onrender.com (Current URL of your deployed app)
 
 5.  **Click "Create Web Service"**
     It will deploy! Wait 2-3 minutes.

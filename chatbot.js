@@ -1,62 +1,71 @@
 const chatStyles = `
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
+
         .chat-widget-launcher {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 60px;
-            height: 60px;
-            background: linear-gradient(45deg, #00d2ff, #3a7bd5);
+            bottom: 32px;
+            right: 32px;
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
             border-radius: 50%;
-            box-shadow: 0 4px 15px rgba(0, 210, 255, 0.4);
+            box-shadow: 0 10px 25px rgba(0, 198, 255, 0.5);
             cursor: pointer;
             z-index: 9999;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.3s ease;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            border: 1px solid rgba(255,255,255,0.2);
         }
 
         .chat-widget-launcher:hover {
-            transform: scale(1.1);
+            transform: scale(1.1) translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 198, 255, 0.6);
         }
 
         .chat-widget-launcher svg {
-            width: 30px;
-            height: 30px;
+            width: 32px;
+            height: 32px;
             fill: white;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
         }
 
         .chat-window {
             position: fixed;
-            bottom: 90px;
-            right: 20px;
-            width: 350px;
-            height: 500px;
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 20px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            bottom: 110px;
+            right: 32px;
+            width: 360px;
+            height: 520px;
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
             z-index: 9999;
-            display: none;
+            display: flex; /* Changed to flex to support animation state */
             flex-direction: column;
             overflow: hidden;
-            font-family: 'Segoe UI', sans-serif;
+            font-family: 'Outfit', sans-serif;
             opacity: 0;
-            transform: translateY(20px);
-            transition: all 0.3s ease;
+            transform: translateY(20px) scale(0.95);
+            pointer-events: none; /* Prevent clicks when closed */
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            transform-origin: bottom right;
         }
 
         .chat-window.open {
-            display: flex;
             opacity: 1;
-            transform: translateY(0);
+            transform: translateY(0) scale(1);
+            pointer-events: all;
         }
 
         .chat-header {
-            background: linear-gradient(45deg, #0f172a, #1e293b);
-            padding: 20px;
-            border-bottom: 1px solid #334155;
+            background: linear-gradient(135deg, rgba(0, 198, 255, 0.15), rgba(0, 114, 255, 0.15));
+            padding: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -64,66 +73,96 @@ const chatStyles = `
 
         .chat-header h3 {
             margin: 0;
-            color: #00d2ff;
-            font-size: 1.1em;
+            background: linear-gradient(135deg, #fff 0%, #00c6ff 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 1.15rem;
+            font-weight: 700;
         }
 
         .chat-header span {
-            font-size: 0.8em;
+            font-size: 0.8rem;
             color: #34d399;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .chat-header span::before {
+            content: '';
+            display: block;
+            width: 8px;
+            height: 8px;
+            background: #34d399;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #34d399;
         }
 
         .chat-close {
-            color: #94a3b8;
+            color: rgba(255,255,255,0.5);
             cursor: pointer;
-            font-size: 1.2em;
+            font-size: 1.5rem;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+        
+        .chat-close:hover {
+            color: white;
         }
 
         .chat-messages {
             flex: 1;
-            padding: 20px;
+            padding: 24px;
             overflow-y: auto;
-            background: #0b0f19;
+            background: transparent;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 20px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
         }
 
         .message {
-            max-width: 80%;
-            padding: 10px 15px;
-            border-radius: 15px;
-            font-size: 0.95em;
-            line-height: 1.4;
+            max-width: 85%;
+            padding: 14px 18px;
+            border-radius: 18px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
 
         .message.bot {
-            background: #1e293b;
+            background: rgba(255, 255, 255, 0.05);
             color: #e2e8f0;
-            border-bottom-left-radius: 2px;
+            border-bottom-left-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
             align-self: flex-start;
         }
 
         .message.user {
-            background: linear-gradient(45deg, #00d2ff, #3a7bd5);
+            background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
             color: white;
-            border-bottom-right-radius: 2px;
+            border-bottom-right-radius: 4px;
             align-self: flex-end;
+            box-shadow: 0 4px 15px rgba(0, 198, 255, 0.25);
         }
 
         .typing-indicator {
             display: none;
-            padding: 10px;
-            background: #1e293b;
-            border-radius: 15px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 18px;
             width: fit-content;
-            margin-bottom: 10px;
+            margin-bottom: 20px;
+            margin-left: 24px;
         }
 
         .typing-dot {
             width: 6px;
             height: 6px;
-            background: #94a3b8;
+            background: rgba(255,255,255,0.5);
             border-radius: 50%;
             display: inline-block;
             margin: 0 2px;
@@ -140,56 +179,75 @@ const chatStyles = `
         }
 
         .chat-input-area {
-            padding: 15px;
-            background: #1e293b;
-            border-top: 1px solid #334155;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
             display: flex;
-            gap: 10px;
+            gap: 12px;
+            align-items: center;
         }
 
         .chat-input {
             flex: 1;
-            background: #0b0f19;
-            border: 1px solid #334155;
-            padding: 10px;
-            border-radius: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 12px 18px;
+            border-radius: 100px;
             color: white;
             outline: none;
+            font-family: inherit;
+            transition: all 0.2s;
         }
         
         .chat-input:focus {
-            border-color: #00d2ff;
+            border-color: #00c6ff;
+            background: rgba(0, 0, 0, 0.5);
+            box-shadow: 0 0 0 2px rgba(0, 198, 255, 0.1);
         }
 
         .chat-send {
             background: transparent;
             border: none;
-            color: #00d2ff;
+            color: #00c6ff;
             cursor: pointer;
             font-size: 1.2em;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+        
+        .chat-send:hover {
+            background: rgba(0, 198, 255, 0.1);
         }
 
         .quick-replies {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             flex-wrap: wrap;
-            margin-top: 5px;
+            margin-top: 8px;
+            justify-content: flex-end;
         }
 
         .quick-reply-btn {
-            background: rgba(0, 210, 255, 0.1);
-            border: 1px solid #00d2ff;
-            color: #00d2ff;
-            padding: 5px 10px;
-            border-radius: 15px;
-            font-size: 0.8em;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-muted);
+            padding: 6px 14px;
+            border-radius: 100px;
+            font-size: 0.8rem;
             cursor: pointer;
             transition: all 0.2s;
+            color: #94a3b8;
         }
 
         .quick-reply-btn:hover {
-            background: #00d2ff;
-            color: white;
+            background: rgba(0, 198, 255, 0.1);
+            border-color: #00c6ff;
+            color: #00c6ff;
         }
     </style>
 `;
@@ -294,7 +352,8 @@ function processBotResponse(userText) {
         } else if (lowerText.includes('support') || lowerText.includes('human') || lowerText.includes('help')) {
             response = "Our team is available 24/7. You can email us at support@missedcallsaviour.com or call +1-555-0199.";
         } else if (lowerText.includes('demo')) {
-            response = "You can try the live demo on our homepage! Just enter your number and I'll send you a simulation text.";
+            response = "You can try the live demo! Just entered your number and I'll give you a call.";
+            // Ideally trigger the call API here if you had the phone number
         } else {
             response = "That's a great question! I'm still learning, but our team can answer that in more detail. Would you like to connect with a support agent?";
         }

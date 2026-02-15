@@ -5,94 +5,202 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Privacy Policy | Missed Call Saviour</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;800&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg-dark: #050a14;
+            --bg-card: rgba(30, 41, 59, 0.4);
+            --primary-gradient: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --accent-glow: rgba(0, 198, 255, 0.5);
+            --glass-border: rgba(255, 255, 255, 0.08);
+        }
+
+        /* Base Styles */
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Outfit', sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #0b0f19;
-            color: #e2e8f0;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
             line-height: 1.6;
+            overflow-x: hidden;
+            background-image:
+                radial-gradient(circle at 10% 20%, rgba(0, 198, 255, 0.03) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(0, 114, 255, 0.03) 0%, transparent 40%);
+        }
+
+        a {
+            text-decoration: none;
+            color: inherit;
+            transition: color 0.3s;
+        }
+
+        /* Nav */
+        nav {
+            padding: 24px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.02em;
         }
 
         .container {
             max-width: 800px;
             margin: 0 auto;
-            padding: 40px 20px;
+            padding: 0 24px;
         }
 
-        h1,
-        h2,
-        h3 {
-            color: #00d2ff;
+        .content-box {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            padding: 48px;
+            border-radius: 20px;
+            margin-top: 40px;
+            margin-bottom: 80px;
         }
 
         h1 {
-            border-bottom: 1px solid #334155;
-            padding-bottom: 20px;
-            margin-bottom: 40px;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 2.5rem;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 24px;
+            margin-bottom: 32px;
         }
 
-        a {
-            color: #00d2ff;
-            text-decoration: none;
+        h2 {
+            color: #fff;
+            margin-top: 32px;
+            font-size: 1.5rem;
+        }
+
+        p,
+        ul {
+            color: var(--text-muted);
+            margin-bottom: 16px;
         }
 
         ul {
-            list-style-type: disc;
-            margin-left: 20px;
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            color: var(--text-muted);
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+
+        .back-link:hover {
+            color: #00c6ff;
+        }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid var(--glass-border);
+            padding: 60px 0;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: auto;
         }
     </style>
 </head>
 
 <body>
+
     <div class="container">
-        <a href="/">← Back to Home</a>
-        <h1>Privacy Policy</h1>
-        <p>Last updated: February 14, 2026</p>
+        <nav>
+            <a href="/" class="logo">Missed Call Saviour</a>
+        </nav>
 
-        <p>At Missed Call Saviour, accessible from missedcallsaviour.com, one of our main priorities is the privacy of
-            our visitors. This Privacy Policy document contains types of information that is collected and recorded by
-            Missed Call Saviour and how we use it.</p>
+        <a href="/" class="back-link">&larr; Back to Home</a>
 
-        <h2>Information We Collect</h2>
-        <p>The personal information that you are asked to provide, and the reasons why you are asked to provide it, will
-            be made clear to you at the point we ask you to provide your personal information.</p>
-        <ul>
-            <li>Account Information (Name, Email, Password)</li>
-            <li>Payment Information (Processed securely via Stripe)</li>
-            <li>Communication Logs (Call data, SMS transcripts for service delivery)</li>
-        </ul>
+        <div class="content-box">
+            <h1>Privacy Policy</h1>
+            <p>Last updated: February 14, 2026</p>
 
-        <h2>How We Use Your Information</h2>
-        <p>We use the information we collect in various ways, including to:</p>
-        <ul>
-            <li>Provide, operate, and maintain our website</li>
-            <li>Improve, personalize, and expand our website</li>
-            <li>Understand and analyze how you use our website</li>
-            <li>Develop new products, services, features, and functionality</li>
-            <li>Send you emails regarding your account or updates</li>
-            <li>Find and prevent fraud</li>
-        </ul>
+            <p>At Missed Call Saviour, accessible from missedcallsaviour.com, one of our main priorities is the privacy
+                of
+                our visitors. This Privacy Policy document contains types of information that is collected and recorded
+                by
+                Missed Call Saviour and how we use it.</p>
 
-        <h2>Log Files</h2>
-        <p>Missed Call Saviour follows a standard procedure of using log files. These files log visitors when they visit
-            websites. All hosting companies do this and a part of hosting services' analytics.</p>
+            <h2>Information We Collect</h2>
+            <p>The personal information that you are asked to provide, and the reasons why you are asked to provide it,
+                will
+                be made clear to you at the point we ask you to provide your personal information.</p>
+            <ul>
+                <li>Account Information (Name, Email, Password)</li>
+                <li>Payment Information (Processed securely via Stripe/Razorpay)</li>
+                <li>Communication Logs (Call data, SMS transcripts for service delivery)</li>
+            </ul>
 
-        <h2>Cookies and Web Beacons</h2>
-        <p>Like any other website, Missed Call Saviour uses 'cookies'. These cookies are used to store information
-            including visitors' preferences, and the pages on the website that the visitor accessed or visited.</p>
+            <h2>How We Use Your Information</h2>
+            <p>We use the information we collect in various ways, including to:</p>
+            <ul>
+                <li>Provide, operate, and maintain our website</li>
+                <li>Improve, personalize, and expand our website</li>
+                <li>Understand and analyze how you use our website</li>
+                <li>Develop new products, services, features, and functionality</li>
+                <li>Send you emails regarding your account or updates</li>
+                <li>Find and prevent fraud</li>
+            </ul>
 
-        <h2>Third Party Privacy Policies</h2>
-        <p>Missed Call Saviour's Privacy Policy does not apply to other advertisers or websites. Thus, we are advising
-            you to consult the respective Privacy Policies of these third-party ad servers for more detailed
-            information.</p>
+            <h2>Log Files</h2>
+            <p>Missed Call Saviour follows a standard procedure of using log files. These files log visitors when they
+                visit
+                websites. All hosting companies do this and a part of hosting services' analytics.</p>
 
-        <h2>Consent</h2>
-        <p>By using our website, you hereby consent to our Privacy Policy and agree to its terms.</p>
+            <h2>Cookies and Web Beacons</h2>
+            <p>Like any other website, Missed Call Saviour uses 'cookies'. These cookies are used to store information
+                including visitors' preferences, and the pages on the website that the visitor accessed or visited.</p>
 
-        <br><br>
-        <p style="font-size: 0.9em; color: #64748b;">Contact: support@missedcallsaviour.com</p>
+            <h2>Third Party Privacy Policies</h2>
+            <p>Missed Call Saviour's Privacy Policy does not apply to other advertisers or websites. Thus, we are
+                advising
+                you to consult the respective Privacy Policies of these third-party ad servers for more detailed
+                information.</p>
+
+            <h2>Consent</h2>
+            <p>By using our website, you hereby consent to our Privacy Policy and agree to its terms.</p>
+
+            <br>
+            <hr style="border-color: var(--glass-border); opacity: 0.5;">
+            <p style="font-size: 0.9em; margin-top: 24px;">Contact: <a href="mailto:support@missedcallsaviour.com"
+                    style="color: #00c6ff;">support@missedcallsaviour.com</a></p>
+        </div>
+
+        <footer>
+            <p>&copy; 2026 Missed Call Saviour. A project by Agentic AI World.</p>
+            <p>
+                <a href="/privacy" style="margin: 0 10px;">Privacy</a>
+                <a href="/terms" style="margin: 0 10px;">Terms</a>
+            </p>
+        </footer>
     </div>
 </body>
 

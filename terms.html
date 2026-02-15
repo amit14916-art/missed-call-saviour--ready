@@ -5,89 +5,193 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terms and Conditions | Missed Call Saviour</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;800&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg-dark: #050a14;
+            --bg-card: rgba(30, 41, 59, 0.4);
+            --primary-gradient: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.08);
+        }
+
+        /* Base Styles */
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Outfit', sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #0b0f19;
-            color: #e2e8f0;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
             line-height: 1.6;
+            overflow-x: hidden;
+            background-image:
+                radial-gradient(circle at 10% 20%, rgba(0, 198, 255, 0.03) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(0, 114, 255, 0.03) 0%, transparent 40%);
+        }
+
+        a {
+            text-decoration: none;
+            color: inherit;
+            transition: color 0.3s;
+        }
+
+        /* Nav */
+        nav {
+            padding: 24px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.02em;
         }
 
         .container {
             max-width: 800px;
             margin: 0 auto;
-            padding: 40px 20px;
+            padding: 0 24px;
         }
 
-        h1,
-        h2,
-        h3 {
-            color: #00d2ff;
+        .content-box {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            padding: 48px;
+            border-radius: 20px;
+            margin-top: 40px;
+            margin-bottom: 80px;
         }
 
         h1 {
-            border-bottom: 1px solid #334155;
-            padding-bottom: 20px;
-            margin-bottom: 40px;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 2.5rem;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 24px;
+            margin-bottom: 32px;
         }
 
-        a {
-            color: #00d2ff;
-            text-decoration: none;
+        h2 {
+            color: #fff;
+            margin-top: 32px;
+            font-size: 1.5rem;
+        }
+
+        p,
+        ul {
+            color: var(--text-muted);
+            margin-bottom: 16px;
         }
 
         ul {
-            list-style-type: disc;
-            margin-left: 20px;
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            color: var(--text-muted);
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+
+        .back-link:hover {
+            color: #00c6ff;
+        }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid var(--glass-border);
+            padding: 60px 0;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: auto;
         }
     </style>
 </head>
 
 <body>
+
     <div class="container">
-        <a href="/">← Back to Home</a>
-        <h1>Terms and Conditions</h1>
-        <p>Last updated: February 14, 2026</p>
+        <nav>
+            <a href="/" class="logo">Missed Call Saviour</a>
+        </nav>
 
-        <h2>1. Introduction</h2>
-        <p>Welcome to Missed Call Saviour! These terms and conditions outline the rules and regulations for the use of
-            Missed Call Saviour's Website, located at missedcallsaviour.com.</p>
+        <a href="/" class="back-link">&larr; Back to Home</a>
 
-        <h2>2. License</h2>
-        <p>Unless otherwise stated, Missed Call Saviour and/or its licensors own the intellectual property rights for
-            all material on Missed Call Saviour. All intellectual property rights are reserved.</p>
+        <div class="content-box">
+            <h1>Terms and Conditions</h1>
+            <p>Last updated: February 14, 2026</p>
 
-        <h2>3. User Account</h2>
-        <p>To access certain features, you will need to create an account. You agree to provide accurate and complete
-            information. You are responsible for maintaining the confidentiality of your account credentials.</p>
+            <h2>1. Introduction</h2>
+            <p>Welcome to Missed Call Saviour! These terms and conditions outline the rules and regulations for the use
+                of Missed Call Saviour's Website, located at missedcallsaviour.com.</p>
 
-        <h2>4. Payment Terms</h2>
-        <p>Subscriptions are billed monthly. You agree to pay all fees associated with your chosen plan. Payments are
-            processed via Stripe. Cancellations must be made before the next billing cycle.</p>
+            <h2>2. License</h2>
+            <p>Unless otherwise stated, Missed Call Saviour and/or its licensors own the intellectual property rights
+                for all material on Missed Call Saviour. All intellectual property rights are reserved.</p>
 
-        <h2>5. Responsibilities</h2>
-        <p>You agree not to use the service for any illegal or unauthorized purpose. You must not transmit any worms or
-            viruses or any code of a destructive nature.</p>
+            <h2>3. User Account</h2>
+            <p>To access certain features, you will need to create an account. You agree to provide accurate and
+                complete information. You are responsible for maintaining the confidentiality of your account
+                credentials.</p>
 
-        <h2>6. Termination</h2>
-        <p>We may terminate or suspend your account immediately, without prior notice or liability, for any reason
-            whatsoever, including without limitation if you breach the Terms.</p>
+            <h2>4. Payment Terms</h2>
+            <p>Subscriptions are billed monthly. You agree to pay all fees associated with your chosen plan. Payments
+                are processed via Stripe or Razorpay. Cancellations must be made before the next billing cycle.</p>
 
-        <h2>7. Limitation of Liability</h2>
-        <p>In no event shall Missed Call Saviour, nor its directors, employees, partners, agents, suppliers, or
-            affiliates, be liable for any indirect, incidental, special, consequential or punitive damages, including
-            without limitation, loss of profits, data, use, goodwill, or other intangible losses, resulting from your
-            access to or use of or inability to access or use the Service.</p>
+            <h2>5. Responsibilities</h2>
+            <p>You agree not to use the service for any illegal or unauthorized purpose. You must not transmit any worms
+                or viruses or any code of a destructive nature.</p>
 
-        <h2>8. Changes</h2>
-        <p>We reserve the right, at our sole discretion, to modify or replace these Terms at any time. By continuing to
-            access or use our Service after those revisions become effective, you agree to be bound by the revised
-            terms.</p>
+            <h2>6. Termination</h2>
+            <p>We may terminate or suspend your account immediately, without prior notice or liability, for any reason
+                whatsoever, including without limitation if you breach the Terms.</p>
 
-        <br><br>
-        <p>If you have any questions about these Terms, please contact us at support@missedcallsaviour.com.</p>
+            <h2>7. Limitation of Liability</h2>
+            <p>In no event shall Missed Call Saviour, nor its directors, employees, partners, agents, suppliers, or
+                affiliates, be liable for any indirect, incidental, special, consequential or punitive damages,
+                including without limitation, loss of profits, data, use, goodwill, or other intangible losses,
+                resulting from your access to or use of or inability to access or use the Service.</p>
+
+            <h2>8. Changes</h2>
+            <p>We reserve the right, at our sole discretion, to modify or replace these Terms at any time. By continuing
+                to access or use our Service after those revisions become effective, you agree to be bound by the
+                revised terms.</p>
+
+            <br>
+            <hr style="border-color: var(--glass-border); opacity: 0.5;">
+            <p style="font-size: 0.9em; margin-top: 24px;">If you have any questions about these Terms, please contact
+                us at <a href="mailto:support@missedcallsaviour.com"
+                    style="color: #00c6ff;">support@missedcallsaviour.com</a>.</p>
+        </div>
+
+        <footer>
+            <p>&copy; 2026 Missed Call Saviour. A project by Agentic AI World.</p>
+            <p>
+                <a href="/privacy" style="margin: 0 10px;">Privacy</a>
+                <a href="/terms" style="margin: 0 10px;">Terms</a>
+            </p>
+        </footer>
     </div>
 </body>
 
