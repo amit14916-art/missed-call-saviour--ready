@@ -392,14 +392,25 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
         elif message_type == "end-of-call-report":
              summary = payload.get("analysis", {}).get("summary", "No summary provided.")
              recording_url = payload.get("recordingUrl")
-             customer_number = payload.get("customer", {}).get("number", "Unknown")
              
+             # Robust extraction of phone number
+             customer_data = payload.get("customer", {})
+             customer_number = customer_data.get("number")
+             
+             if not customer_number:
+                 # Try finding it in 'call' object for outbound calls
+                 customer_number = payload.get("call", {}).get("customer", {}).get("number")
+             
+             if not customer_number:
+                  # Fallback to looking at the phoneCallProvider (Twilio) logs if present
+                  customer_number = "Unknown"
+
              # Save to DB
              db = SessionLocal()
              try:
                  new_call = CallLog(
                      phone_number=customer_number,
-                     call_type="inbound/outbound", # Vapi doesn't always specify clearly, generally inbound for missed calls
+                     call_type="inbound/outbound", 
                      status="completed",
                      summary=summary,
                      recording_url=recording_url
