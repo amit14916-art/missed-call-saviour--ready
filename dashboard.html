@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --bg-dark: #050a14;
@@ -337,23 +338,89 @@
 
             <!-- DASHBOARD VIEW -->
             <div id="dashboard-view" class="view-section">
-                <div class="stat-grid">
-                    <div class="stat-card glass-panel">
-                        <div class="stat-label">Missed Calls Saved</div>
+                <!-- Enhanced Grid Layout -->
+                <div
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-bottom: 24px;">
+                    <!-- Stat 1 -->
+                    <div class="stat-card glass-panel" style="position: relative; overflow: hidden;">
+                        <div
+                            style="display:flex; justify-content:space-between; align-items:start; margin-bottom: 10px;">
+                            <div class="stat-label">Missed Calls Saved</div>
+                            <div
+                                style="background:rgba(52, 211, 153, 0.2); padding:8px; border-radius:8px; font-size:1.2rem;">
+                                🛡️</div>
+                        </div>
                         <div class="stat-value">12</div>
+                        <div
+                            style="position: absolute; bottom: 0; right: 0; width: 100%; height: 4px; background: linear-gradient(90deg, #34d399, transparent);">
+                        </div>
                     </div>
-                    <div class="stat-card glass-panel">
-                        <div class="stat-label">Est. Revenue Recovered</div>
+
+                    <!-- Stat 2 -->
+                    <div class="stat-card glass-panel" style="position: relative; overflow: hidden;">
+                        <div
+                            style="display:flex; justify-content:space-between; align-items:start; margin-bottom: 10px;">
+                            <div class="stat-label">Revenue Recovered</div>
+                            <div
+                                style="background:rgba(0, 198, 255, 0.2); padding:8px; border-radius:8px; font-size:1.2rem;">
+                                💰</div>
+                        </div>
                         <div class="stat-value"
                             style="background: var(--primary-gradient); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
                             $2,400</div>
+                        <div
+                            style="position: absolute; bottom: 0; right: 0; width: 100%; height: 4px; background: linear-gradient(90deg, #00c6ff, transparent);">
+                        </div>
                     </div>
-                    <div class="stat-card glass-panel">
-                        <div class="stat-label">AI Engagement Rate</div>
+
+                    <!-- Stat 3 -->
+                    <div class="stat-card glass-panel" style="position: relative; overflow: hidden;">
+                        <div
+                            style="display:flex; justify-content:space-between; align-items:start; margin-bottom: 10px;">
+                            <div class="stat-label">AI Success Rate</div>
+                            <div
+                                style="background:rgba(251, 191, 36, 0.2); padding:8px; border-radius:8px; font-size:1.2rem;">
+                                ⚡</div>
+                        </div>
                         <div class="stat-value">98%</div>
+                        <div
+                            style="position: absolute; bottom: 0; right: 0; width: 100%; height: 4px; background: linear-gradient(90deg, #fbbf24, transparent);">
+                        </div>
                     </div>
                 </div>
 
+                <!-- Middle Section: Chart + Actions -->
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 24px;">
+                    <div class="glass-panel" style="padding: 24px; min-height: 300px;">
+                        <h3 style="margin-top:0; font-size: 1.1rem; margin-bottom: 16px;">Weekly Call Volume</h3>
+                        <div style="position: relative; height: 250px; width:100%">
+                            <canvas id="weeklyChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel" style="padding: 24px;">
+                        <h3 style="margin-top:0; font-size: 1.1rem; margin-bottom: 16px;">Quick Actions</h3>
+
+                        <div
+                            style="background: rgba(255,255,255,0.05); padding: 16px; border-radius: 12px; border: 1px solid var(--glass-border);">
+                            <label style="font-size: 0.85rem; margin-bottom: 8px; display: block;">Test Your
+                                Agent</label>
+                            <input type="text" id="demoPhone" placeholder="+1 (555) 000-0000"
+                                style="margin-bottom: 12px; font-size: 0.9rem;">
+                            <button class="btn" id="demoBtn" onclick="triggerDemoCall()"
+                                style="width:100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                <span>📞</span> Trigger Call
+                            </button>
+                            <p
+                                style="font-size: 0.75rem; color: var(--text-muted); margin-top: 12px; margin-bottom: 0; line-height: 1.4;">
+                                Instantly requests a call from your AI to test its current greeting and personality.
+                            </p>
+                            <div id="demoMsg" style="margin-top: 10px; font-size: 0.8rem; display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity Table -->
                 <div class="glass-panel" style="padding: 10px;">
                     <div
                         style="padding: 20px 24px; border-bottom: 1px solid var(--glass-border); display: flex; justify-content: space-between;">
@@ -367,28 +434,16 @@
                                 <tr>
                                     <th>Caller</th>
                                     <th>Time</th>
-                                    <th>AI Action</th>
+                                    <th>Resolution</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>+1 (555) 123-4567</td>
-                                    <td>10 mins ago</td>
-                                    <td>Sent scheduling link</td>
-                                    <td><span style="color: #34d399;">● Recovered</span></td>
-                                </tr>
-                                <tr>
-                                    <td>+1 (555) 987-6543</td>
-                                    <td>1 hour ago</td>
-                                    <td>Answered pricing FAQ</td>
-                                    <td><span style="color: #38bdf8;">● Resolved</span></td>
-                                </tr>
-                                <tr>
-                                    <td>+1 (405) 999-0011</td>
-                                    <td>3 hours ago</td>
-                                    <td>Requested callback</td>
-                                    <td><span style="color: #fbbf24;">● Pending</span></td>
+                                    <td colspan="4"
+                                        style="text-align: center; padding: 40px; color: var(--text-muted);">
+                                        Loading recent calls...
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
@@ -563,6 +618,9 @@
 
                     // Fetch AI Config
                     fetchAIConfig(token);
+
+                    // Initialize Chart
+                    renderChart();
 
                 } else {
                     localStorage.removeItem('token');
@@ -774,6 +832,121 @@
                 item.classList.remove('active');
                 if (item.getAttribute('onclick').includes(viewId)) {
                     item.classList.add('active');
+                }
+            });
+        }
+        async function triggerDemoCall() {
+            const phone = document.getElementById('demoPhone').value;
+            const btn = document.getElementById('demoBtn');
+            const msg = document.getElementById('demoMsg');
+
+            if (!phone) {
+                alert("Please enter a phone number");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = "<span>⏳</span> Connecting...";
+            msg.style.display = 'none';
+
+            try {
+                const formData = new FormData();
+                formData.append('phone', phone);
+
+                const response = await fetch('/api/send-demo-call', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    msg.style.display = 'block';
+                    msg.style.color = '#34d399';
+                    msg.innerText = "Call initiated! Pickup your phone.";
+                    btn.innerHTML = "<span>✅</span> Call Sent";
+                } else {
+                    throw new Error(data.details || "Failed");
+                }
+            } catch (e) {
+                msg.style.display = 'block';
+                msg.style.color = '#ef4444';
+                msg.innerText = "Error: " + e.message;
+                btn.innerHTML = "<span>📞</span> Trigger Call";
+            } finally {
+                setTimeout(() => {
+                    if (btn.innerText.includes("Sent")) {
+                        btn.disabled = false;
+                        btn.innerHTML = "<span>📞</span> Trigger Call";
+                    } else {
+                        btn.disabled = false;
+                    }
+                }, 5000);
+            }
+        }
+
+        function renderChart() {
+            if (typeof Chart === 'undefined') {
+                setTimeout(renderChart, 500); // Retry if CDN is slow
+                return;
+            }
+
+            const ctx = document.getElementById('weeklyChart');
+            if (!ctx) return;
+
+            // Check if chart instance exists
+            if (window.myChart instanceof Chart) {
+                window.myChart.destroy();
+            }
+
+            Chart.defaults.color = '#94a3b8';
+            Chart.defaults.font.family = "'Outfit', sans-serif";
+
+            // Mock Data for MVP visualization
+            const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            const data = {
+                labels: labels,
+                datasets: [{
+                    label: 'Missed Calls Handled',
+                    data: [12, 19, 3, 5, 12, 3, 9],
+                    borderColor: '#00c6ff',
+                    backgroundColor: 'rgba(0, 198, 255, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true,
+                    pointBackgroundColor: '#00c6ff'
+                }]
+            };
+
+            window.myChart = new Chart(ctx, {
+                type: 'line',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleColor: '#fff',
+                            bodyColor: '#cbd5e1',
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderWidth: 1,
+                            padding: 10,
+                            displayColors: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            border: { display: false }
+                        },
+                        x: {
+                            grid: { display: false },
+                            border: { display: false }
+                        }
+                    }
                 }
             });
         }
