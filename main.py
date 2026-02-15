@@ -393,33 +393,7 @@ async def send_demo_call(background_tasks: BackgroundTasks, phone: str = Form(..
         print(f"Error in demo call endpoint: {e}")
         return JSONResponse(status_code=500, content={"error": "Failed to initiate call", "details": str(e)})
 
-@app.post("/api/create-checkout-session")
-async def create_checkout_session(email: str = Form(...), plan: str = Form(...)):
-    if not stripe.api_key:
-         return JSONResponse(status_code=400, content={"error": "Stripe API Key is missing. Check .env"})
 
-    price_id = "price_1Ot..." 
-    amount = 4900 if "Starter" in plan else 9900
-        
-    try:
-        checkout_session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=[{
-                'price_data': {
-                    'currency': 'usd',
-                    'product_data': {'name': f"Missed Call Saviour - {plan} Plan"},
-                    'unit_amount': amount,
-                },
-                'quantity': 1,
-            }],
-            mode='payment',
-            success_url=DOMAIN + '/dashboard?status=active&session_id={CHECKOUT_SESSION_ID}',
-            cancel_url=DOMAIN + '/pricing',
-            customer_email=email,
-        )
-        return {"checkout_url": checkout_session.url}
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/api/process-payment")
 async def process_payment(background_tasks: BackgroundTasks, email: str = Form(...), plan: str = Form(...), db: Session = Depends(get_db)):
