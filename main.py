@@ -294,8 +294,14 @@ async def signup(background_tasks: BackgroundTasks, email: str = Form(...), pass
 @app.post("/api/send-demo-call")
 async def send_demo_call(background_tasks: BackgroundTasks, phone: str = Form(...)):
     print(f"Received demo Call request for: {phone}")
-    background_tasks.add_task(trigger_vapi_outbound_call, phone, "Hello! This is your Missed Call Saviour demo. I can help recover lost revenue.")
-    return {"success": True, "message": "Demo call queued."}
+    
+    # Direct Call for improved reliability on free tier
+    try:
+        await trigger_vapi_outbound_call(phone, "Hello! This is your Missed Call Saviour demo. I can help recover lost revenue.")
+        return {"success": True, "message": "Demo call initiated successfully."}
+    except Exception as e:
+        print(f"Error in demo call endpoint: {e}")
+        return JSONResponse(status_code=500, content={"error": "Failed to initiate call", "details": str(e)})
 
 @app.post("/api/create-checkout-session")
 async def create_checkout_session(email: str = Form(...), plan: str = Form(...)):
