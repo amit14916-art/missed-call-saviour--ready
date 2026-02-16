@@ -305,9 +305,7 @@
                     <div class="menu-item" onclick="showView('settings')">
                         <span>⚙️</span> AI Settings
                     </div>
-                    <div class="menu-item" onclick="showView('integrations')">
-                        <span>🔌</span> Integrations
-                    </div>
+
                     <div class="menu-item" onclick="showView('billing')">
                         <span>💳</span> Billing
                     </div>
@@ -531,31 +529,7 @@
                 </div>
             </div>
 
-            <!-- INTEGRATIONS VIEW -->
-            <div id="integrations-view" class="view-section" style="display: none;">
-                <div class="integration-grid">
-                    <div class="glass-panel integration-card">
-                        <h3 style="color: #635bff;">Stripe</h3>
-                        <p style="color: var(--text-muted); font-size: 0.9rem;">Payment processing.</p>
-                        <div class="integration-status is-connected">Connected</div>
-                    </div>
-                    <div class="glass-panel integration-card">
-                        <h3 style="color: #663399;">Make.com</h3>
-                        <p style="color: var(--text-muted); font-size: 0.9rem;">Automations & worklows.</p>
-                        <div class="integration-status is-connected">Connected</div>
-                    </div>
-                    <div class="glass-panel integration-card">
-                        <h3 style="color: #f22f46;">Twilio</h3>
-                        <p style="color: var(--text-muted); font-size: 0.9rem;">SMS & Voice Gateway.</p>
-                        <div class="integration-status is-pending">Setup Required</div>
-                    </div>
-                    <div class="glass-panel integration-card">
-                        <h3 style="color: #10b981;">Vapi.ai</h3>
-                        <p style="color: var(--text-muted); font-size: 0.9rem;">Voice Intelligence.</p>
-                        <div class="integration-status is-connected">Connected</div>
-                    </div>
-                </div>
-            </div>
+
 
             <!-- BILLING VIEW -->
             <div id="billing-view" class="view-section" style="display: none;">
@@ -821,7 +795,7 @@
                 'dashboard': 'Dashboard Overview',
                 'logs': 'Call Logs & Transcripts',
                 'settings': 'Agent Configuration',
-                'integrations': 'Connected Services',
+
                 'billing': 'Billing & Payments'
             };
             const titleElem = document.getElementById('page-title');

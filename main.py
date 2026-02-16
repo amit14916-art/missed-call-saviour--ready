@@ -260,7 +260,9 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None):
               "model": {
                  "provider": "openai",
                  "model": "gpt-3.5-turbo",
-                 "messages": [{"role": "system", "content": "You are a helpful assistant."}]
+                 "messages": [
+                     {"role": "system", "content": "You are a helpful assistant for an Indian business. Speak in a mix of Hindi and English (Hinglish). Keep responses short and professional."}
+                 ]
              }
          }
 
@@ -387,7 +389,8 @@ async def send_demo_call(background_tasks: BackgroundTasks, phone: str = Form(..
     
     # Direct Call for improved reliability on free tier
     try:
-        await trigger_vapi_outbound_call(phone, "Hello! This is your Missed Call Saviour demo. I can help recover lost revenue.")
+        # Default Demo Call Message (Hinglish)
+        await trigger_vapi_outbound_call(phone, "Namaste! Main Missed Call Saviour se bol raha hu. Ye ek demo call hai aapke business ke liye.")
         return {"success": True, "message": "Demo call initiated successfully."}
     except Exception as e:
         print(f"Error in demo call endpoint: {e}")
@@ -538,7 +541,7 @@ async def get_ai_config(current_user: User = Depends(get_current_user), db: Sess
     # Check if user has a stored config (mocking for now with default)
     return {
         "business_name": "My Business",
-        "greeting": "Hello! I'm calling from My Business. How can I help you today?",
+        "greeting": "Namaste! Main My Business se bol raha hoon. Kya main aapki help kar sakta hoon?",
         "delay": 0
     }
 
@@ -565,6 +568,8 @@ async def update_ai_config(
         updated_prompt = f"""
 You are a helpful AI receptionist for {business_name}. 
 Your first message should be: "{greeting}"
+You are designed for an Indian audience. You should speak in a mix of Hindi and English (Hinglish) that is natural and professional.
+If the user speaks Hindi, reply in Hindi. If they speak English, reply in English.
 Your goal is to qualify leads and book appointments.
         """
         
