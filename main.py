@@ -532,17 +532,28 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user), db
 
 # --- AI Configuration Endpoints ---
 
+class AIConfig(Base):
+    __tablename__ = "ai_configs"
+    id = Column(Integer, primary_key=True, index=True)
+    user_email = Column(String, index=True) # Linking by email for MVP simplicity
+    business_name = Column(String, default="My Business")
+    greeting = Column(String, default="Namaste! Main kaise help kar sakta hoon?")
+
+Base.metadata.create_all(bind=engine)
+
+# ... (rest of code)
+
 @app.get("/api/ai-config")
 async def get_ai_config(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    # In a real app, this would be a separate table linked to user_id
-    # For MVP, we'll store basic config on the User model or a new AIConfig model
-    # Let's create a simple JSON response for now, simulating stored config
-    
-    # Check if user has a stored config (mocking for now with default)
+    config = db.query(AIConfig).filter(AIConfig.user_email == current_user.email).first()
+    if not config:
+        return {
+            "business_name": "My Business",
+            "greeting": "Namaste! Main My Business se bol raha hoon. Kya main aapki help kar sakta hoon?",
+        }
     return {
-        "business_name": "My Business",
-        "greeting": "Namaste! Main My Business se bol raha hoon. Kya main aapki help kar sakta hoon?",
-        "delay": 0
+        "business_name": config.business_name,
+        "greeting": config.greeting
     }
 
 @app.post("/api/ai-config")
@@ -556,21 +567,39 @@ async def update_ai_config(
         business_name = data.get("business_name")
         greeting = data.get("greeting")
         
-        # 1. Update Vapi Assistant via API (The Magic Part)
+        # 1. Save to DB
+        config = db.query(AIConfig).filter(AIConfig.user_email == current_user.email).first()
+        if not config:
+            config = AIConfig(user_email=current_user.email, business_name=business_name, greeting=greeting)
+            db.add(config)
+        else:
+            config.business_name = business_name
+            config.greeting = greeting
+        db.commit()
+
+        # 2. Update Vapi Assistant via API
         vapi_url = f"https://api.vapi.ai/assistant/{os.getenv('VAPI_ASSISTANT_ID')}"
         headers = {
             "Authorization": f"Bearer {os.getenv('VAPI_PRIVATE_KEY')}",
             "Content-Type": "application/json"
         }
         
-        # Construct Vapi System Prompt update
-        # This is where we inject the user's business name/greeting into the AI's brain
+        # New "Conversational Hinglish" Prompt
         updated_prompt = f"""
-You are a helpful AI receptionist for {business_name}. 
-Your first message should be: "{greeting}"
-You are designed for an Indian audience. You should speak in a mix of Hindi and English (Hinglish) that is natural and professional.
-If the user speaks Hindi, reply in Hindi. If they speak English, reply in English.
-Your goal is to qualify leads and book appointments.
+        Role: You are a friendly and professional AI receptionist for {business_name}.
+        Context: You are handling calls for an Indian business.
+        Language: Speak in natural Hinglish (mix of Hindi and English). Use common Indian conversational words like 'Ji', 'Haan', 'Thik hai', 'Samajh gaya'.
+        Tone: Be warm, engaging, and patient. Do NOT be robotic or too short. Have a proper conversation.
+        Task: 
+        1. Start by welcoming them with: "{greeting}"
+        2. Understand their query (Appointment, Price, or General Info).
+        3. Explain details clearly in Hinglish.
+        4. Always ask a follow-up question to keep the chat alive (e.g., "Kya aapko aur kuch janna hai?" or "Kya main ye book kar du?").
+        
+        Guardrails:
+        - If they speak English, reply in English.
+        - If they speak Hindi, reply in Hindi/Hinglish.
+        - Never end the call abruptly.
         """
         
         payload = {
@@ -579,7 +608,7 @@ Your goal is to qualify leads and book appointments.
                     {"role": "system", "content": updated_prompt}
                 ]
             },
-            # "firstMessage": greeting  <-- Vapi sometimes uses this or the system prompt, safer to update prompt
+            # "firstMessage": greeting REMOVED to let system prompt handle flow or use dynamic if needed
         }
         
         async with httpx.AsyncClient() as client:
@@ -587,9 +616,10 @@ Your goal is to qualify leads and book appointments.
             
             if response.status_code != 200:
                 print(f"Vapi Update Error: {response.text}")
-                raise HTTPException(status_code=500, detail="Failed to update AI Assistant")
+                # Don't raise error to UI if DB save worked, just log it
+                # raise HTTPException(status_code=500, detail="Failed to update AI Assistant")
                 
-        return {"success": True, "message": "AI Assistant Updated Successfully!"}
+        return {"success": True, "message": "AI Settings Updated!"}
 
     except Exception as e:
         print(f"Config Update Error: {e}")
