@@ -254,9 +254,10 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None):
     Triggers an outbound call using Vapi.ai API
     """
     vapi_url = "https://api.vapi.ai/call"
-    vapi_private_key = os.getenv("VAPI_PRIVATE_KEY", "").strip()
-    vapi_assistant_id = os.getenv("VAPI_ASSISTANT_ID", "").strip()
-    vapi_phone_number_id = os.getenv("VAPI_PHONE_NUMBER_ID", "").strip()
+    # Vapi Call
+    vapi_private_key = VAPI_PRIVATE_KEY
+    vapi_assistant_id = VAPI_ASSISTANT_ID
+    vapi_phone_number_id = VAPI_PHONE_NUMBER_ID
     
     if not vapi_private_key or not vapi_assistant_id:
         print("Skipping Vapi call (not configured): Missing VAPI_PRIVATE_KEY or VAPI_ASSISTANT_ID")
@@ -602,8 +603,9 @@ async def update_ai_config(
         return JSONResponse(status_code=500, content={"error": f"Database Error: {str(e)}"})
 
     # 2. Update Vapi Assistant via API
-    vapi_private_key = os.getenv('VAPI_PRIVATE_KEY')
-    vapi_assistant_id = os.getenv('VAPI_ASSISTANT_ID')
+    # 2. Update Vapi Assistant via API
+    vapi_private_key = VAPI_PRIVATE_KEY
+    vapi_assistant_id = VAPI_ASSISTANT_ID
 
     if not vapi_private_key or not vapi_assistant_id:
         print("Vapi environment variables missing.")
