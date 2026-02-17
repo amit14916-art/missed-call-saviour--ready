@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-pydantic>=2.5.3
+pydantic>=2.7.0
 email-validator
 jinja2
 python-multipart
