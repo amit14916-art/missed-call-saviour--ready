@@ -263,12 +263,18 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None):
         print("Skipping Vapi call (not configured): Missing VAPI_PRIVATE_KEY or VAPI_ASSISTANT_ID")
         return
 
+    webhook_url = f"{DOMAIN}/api/vapi/webhook"
+    if "127.0.0.1" in webhook_url or "localhost" in webhook_url:
+        # Default fallback for local dev if DOMAIN not set
+        webhook_url = "https://missed-call-saviour-ready-production.up.railway.app/api/vapi/webhook"
+
     payload = {
       "assistantId": vapi_assistant_id,
       "customer": {
         "number": phone
       },
-      "phoneNumberId": vapi_phone_number_id, 
+      "phoneNumberId": vapi_phone_number_id,
+      "serverUrl": webhook_url
     }
     
     if message:
