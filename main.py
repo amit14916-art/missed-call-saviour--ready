@@ -650,6 +650,8 @@ async def update_ai_config(
         
         payload = {
             "model": {
+                "provider": "openai",
+                "model": "gpt-4o",
                 "messages": [
                     {"role": "system", "content": updated_prompt}
                 ]
