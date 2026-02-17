@@ -973,6 +973,37 @@
                 }
             });
         }
+
+        // Auto-Refresh (Polling)
+        let lastCallDataString = "";
+
+        setInterval(() => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                // Refresh Dashboard Stats (Recent Activity)
+                // We run this unconditionally as it updates the main overview
+                fetchDashboardStats(token);
+
+                // Refresh Full Logs (Smart Check to preserve Audio Player state if no change)
+                fetch('/api/calls', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+                    .then(res => res.json())
+                    .then(logs => {
+                        // Create a simple "hash" of valid data to detect changes
+                        // We allow 'duration' to update without re-render if it's the same
+                        // But if status changes (Initiated -> Completed), we MUST re-render
+                        const currentDataString = JSON.stringify(logs.map(l => l.id + l.status + (l.recording_url ? 'rec' : 'norec')));
+
+                        if (currentDataString !== lastCallDataString) {
+                            console.log("New call data detected, refreshing tables...");
+                            lastCallDataString = currentDataString;
+                            renderCallLogs(logs);
+                        }
+                    })
+                    .catch(e => console.error("Polling error", e));
+            }
+        }, 5000); // Check every 5 seconds
     </script>
     <script src="/chatbot.js"></script>
 </body>
