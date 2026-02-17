@@ -408,9 +408,25 @@ async def signup(background_tasks: BackgroundTasks, email: str = Form(...), pass
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/send-demo-call")
-async def send_demo_call(background_tasks: BackgroundTasks, phone: str = Form(...)):
+async def send_demo_call(background_tasks: BackgroundTasks, phone: str = Form(...), db: Session = Depends(get_db)):
     print(f"Received demo Call request for: {phone}")
     
+    # 1. Log the call immediately so it shows in dashboard even if webhook fails/is delayed
+    try:
+        new_call = CallLog(
+            phone_number=phone,
+            call_type="outbound-demo", 
+            status="initiated",
+            summary="Demo call initiated from dashboard.",
+            recording_url=None,
+            duration=0
+        )
+        db.add(new_call)
+        db.commit()
+        print(f"Logged initiated call for {phone}")
+    except Exception as e:
+        print(f"Failed to log initial call: {e}")
+
     # Direct Call for improved reliability on free tier
     try:
         # Default Demo Call Message (Hinglish)
