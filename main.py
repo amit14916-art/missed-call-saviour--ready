@@ -595,11 +595,17 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user), db
     
     recent_activity = []
     for call in recent_calls:
+        outcome = "Failed"
+        if call.status == "completed":
+            outcome = "Recovered"
+        elif call.status == "initiated":
+            outcome = "Calling..."
+            
         recent_activity.append({
             "phone": call.phone_number,
             "time": call.timestamp, # specific formatting can be done in frontend
-            "action": "Call Completed", # Placeholder until advanced analysis integration
-            "status": "Recovered" if call.status == "completed" else "Failed",
+            "action": "Call Completed" if call.status == "completed" else "Outbound Call", 
+            "status": outcome,
             "recording_url": call.recording_url
         })
 
