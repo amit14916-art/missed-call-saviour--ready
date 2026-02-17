@@ -37,14 +37,15 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # --- Database Setup ---
 DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
-    # Fail fast if no database is configured (Production Safety)
-    raise ValueError("CRITICAL: DATABASE_URL is not set. App cannot start without a database.")
 
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+if DATABASE_URL and DATABASE_URL.startswith("postgres"):
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+else:
+    print("WARNING: DATABASE_URL not set or invalid. Falling back to SQLite for debugging.")
+    SQLALCHEMY_DATABASE_URL = "sqlite:///./missed_calls.db"
+    engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
