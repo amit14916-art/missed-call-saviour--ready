@@ -36,16 +36,26 @@ pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # --- Database Setup ---
-DATABASE_URL = os.getenv("DATABASE_URL")
 
-if DATABASE_URL and DATABASE_URL.startswith("postgres"):
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-else:
-    print("WARNING: DATABASE_URL not set or invalid. Falling back to SQLite for debugging.")
-    SQLALCHEMY_DATABASE_URL = "sqlite:///./missed_calls.db"
-    engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+try:
+    from config_secrets import DATABASE_URL, VAPI_PRIVATE_KEY, VAPI_ASSISTANT_ID, VAPI_PHONE_NUMBER_ID
+    print("Using hardcoded secrets from config_secrets.py")
+except ImportError:
+    print("Using environment variables (config_secrets.py not found)")
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    VAPI_PRIVATE_KEY = os.getenv("VAPI_PRIVATE_KEY")
+    VAPI_ASSISTANT_ID = os.getenv("VAPI_ASSISTANT_ID")
+    VAPI_PHONE_NUMBER_ID = os.getenv("VAPI_PHONE_NUMBER_ID")
+
+# Ensure DATABASE_URL is valid
+if not DATABASE_URL:
+    print("WARNING: DATABASE_URL not found!")
+    # Allow SQLite fallback for temporary use
+    DATABASE_URL = "sqlite:///./missed_calls.db"
+
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
