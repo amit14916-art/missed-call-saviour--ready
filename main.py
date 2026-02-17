@@ -445,7 +445,9 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
     try:
         payload = await request.json()
         message_type = payload.get("message", {}).get("type") or payload.get("type")
-        print(f"Received Vapi Event: {message_type}")
+        if message_type == "end-of-call-report" or message_type == "function-call":
+            import json
+            print(f"FULL VAPI PAYLOAD: {json.dumps(payload)}")
 
         if message_type == "function-call":
             function_name = payload.get("functionCall", {}).get("name")
