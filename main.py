@@ -24,10 +24,6 @@ stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 DOMAIN = os.getenv("DOMAIN", "http://127.0.0.1:8000")
 
 # Razorpay
-RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
-RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
-razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)) if RAZORPAY_KEY_ID else None
-
 # Security
 SECRET_KEY = "super-secret-key-change-this-in-production"
 ALGORITHM = "HS256"
@@ -38,7 +34,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 # --- Database Setup ---
 
 try:
-    from config_secrets import DATABASE_URL, VAPI_PRIVATE_KEY, VAPI_ASSISTANT_ID, VAPI_PHONE_NUMBER_ID
+    from config_secrets import DATABASE_URL, VAPI_PRIVATE_KEY, VAPI_ASSISTANT_ID, VAPI_PHONE_NUMBER_ID, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET
     print("Using hardcoded secrets from config_secrets.py")
 except ImportError:
     print("Using environment variables (config_secrets.py not found)")
@@ -46,6 +42,19 @@ except ImportError:
     VAPI_PRIVATE_KEY = os.getenv("VAPI_PRIVATE_KEY")
     VAPI_ASSISTANT_ID = os.getenv("VAPI_ASSISTANT_ID")
     VAPI_PHONE_NUMBER_ID = os.getenv("VAPI_PHONE_NUMBER_ID")
+    RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
+    RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
+
+# Initialize Razorpay Client
+try:
+    if RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET:
+        razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
+    else:
+        razorpay_client = None
+        print("WARNING: Razorpay Keys Missing")
+except NameError:
+    razorpay_client = None
+    print("WARNING: Razorpay config failed")
 
 # Ensure DATABASE_URL is valid
 if not DATABASE_URL:
