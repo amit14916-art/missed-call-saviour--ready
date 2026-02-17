@@ -8,3 +8,7 @@ DATABASE_URL = "postgresql://postgres.anfrcjrpuhfhiuadzytl:StrongAndSafePassword
 VAPI_PRIVATE_KEY = "f73a207c-c3f7-47c3-afab-e679cd5400b8"
 VAPI_ASSISTANT_ID = "47f672ff-38e1-4590-9d86-a84c5db45bbc"
 VAPI_PHONE_NUMBER_ID = "c7394be1-2357-4e8b-a891-30029f071f55"
+
+# Razorpay Keys (Live)
+RAZORPAY_KEY_ID = "rzp_live_SHIHekjovSvcCU"
+RAZORPAY_KEY_SECRET = "tjemjJE04zEUjV1ez8hyOOIY"
