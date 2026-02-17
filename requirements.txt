@@ -13,3 +13,4 @@ httpx
 passlib[sha256_crypt]
 python-jose[cryptography]
 razorpay
+pydantic-settings
