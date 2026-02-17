@@ -459,9 +459,16 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
         print(f"Parsed Message Type: {message_type}")
         sys.stdout.flush()
 
+        # Extract the core data object (handles wrapped and unwrapped payloads)
+        data = payload.get("message", payload)
+        
+        # Log the extracted data for debugging
+        print(f"Extracted Data Keys: {list(data.keys())}")
+        sys.stdout.flush()
+
         if message_type == "function-call":
-            function_name = payload.get("functionCall", {}).get("name")
-            parameters = payload.get("functionCall", {}).get("parameters", {})
+            function_name = data.get("functionCall", {}).get("name")
+            parameters = data.get("functionCall", {}).get("parameters", {})
             
             if function_name == "book_appointment":
                 return JSONResponse(content={"result": "Appointment booked successfully for " + parameters.get("time", "tomorrow")})
@@ -469,23 +476,40 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                  phone = parameters.get("phone")
                  message = parameters.get("message")
                  print(f"Vapi requested SMS to {phone}: {message}")
+                 sys.stdout.flush()
                  return JSONResponse(content={"result": "SMS logged (integration pending)"})
 
-        elif message_type == "end-of-call-report":
-             summary = payload.get("analysis", {}).get("summary", "No summary provided.")
-             recording_url = payload.get("recordingUrl")
+        elif message_type == "end-of-call-report" or message_type == "End Of Call Report":
+             # Extract Analysis
+             analysis = data.get("analysis", {})
+             summary = analysis.get("summary", "No summary provided.")
+             recording_url = data.get("recordingUrl")
              
+             # Extract Duration
+             duration = data.get("durationSeconds", 0)
+             if not duration:
+                  duration = data.get("endedReason", {}).get("durationSeconds", 0)
+
              # Robust extraction of phone number
-             customer_data = payload.get("customer", {})
-             customer_number = customer_data.get("number")
+             customer_number = None
              
-             if not customer_number:
-                 # Try finding it in 'call' object for outbound calls
-                 customer_number = payload.get("call", {}).get("customer", {}).get("number")
+             # 1. Try data.customer.number
+             if "customer" in data:
+                 customer_number = data["customer"].get("number")
              
+             # 2. Try data.call.customer.number
+             if not customer_number and "call" in data:
+                 customer_number = data["call"].get("customer", {}).get("number")
+             
+             # 3. Try finding inside artifact (sometimes Vapi puts it there)
              if not customer_number:
-                  # Fallback to looking at the phoneCallProvider (Twilio) logs if present
+                 customer_number = data.get("artifact", {}).get("customer", {}).get("number")
+
+             if not customer_number:
                   customer_number = "Unknown"
+
+             print(f"Saving Call Log -> Phone: {customer_number}, Duration: {duration}s")
+             sys.stdout.flush()
 
              # Save to DB
              db = SessionLocal()
@@ -495,18 +519,22 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                      call_type="inbound/outbound", 
                      status="completed",
                      summary=summary,
-                     recording_url=recording_url
+                     recording_url=recording_url,
+                     duration=int(duration) if duration else 0
                  )
                  db.add(new_call)
                  db.commit()
+                 print("Call Log Saved Successfully!")
+                 sys.stdout.flush()
              except Exception as db_e:
                  print(f"Failed to save call log: {db_e}")
+                 sys.stdout.flush()
              finally:
                  db.close()
 
              admin_email = os.getenv("MAIL_USERNAME")
              if admin_email:
-                 email_body = f"<h1>New Call</h1><p>{summary}</p><p><a href='{recording_url}'>Recording</a></p>"
+                 email_body = f"<h1>New Call</h1><p>Duration: {duration}s</p><p>{summary}</p><p><a href='{recording_url}'>Recording</a></p>"
                  background_tasks.add_task(send_email_background, "New Call Summary", admin_email, email_body)
 
         return {"status": "ok"}
