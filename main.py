@@ -534,20 +534,53 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
              print(f"Saving Call Log -> Phone: {customer_number}, Duration: {duration}s")
              sys.stdout.flush()
 
-             # Save to DB
+             # Save/Update DB
              db = SessionLocal()
              try:
-                 new_call = CallLog(
-                     phone_number=customer_number,
-                     call_type="inbound/outbound", 
-                     status="completed",
-                     summary=summary,
-                     recording_url=recording_url,
-                     duration=int(duration) if duration else 0
-                 )
-                 db.add(new_call)
-                 db.commit()
-                 print("Call Log Saved Successfully!")
+                 # Check if we have a recent pending call (initiated) that matches or is recent
+                 # This fixes the "Unknown" number issue for outbound API calls
+                 existing_call = None
+                 
+                 if customer_number and customer_number != "Unknown":
+                     # Try to find recent call by number
+                     existing_call = db.query(CallLog).filter(
+                         CallLog.phone_number == customer_number,
+                         CallLog.status == "initiated"
+                     ).order_by(CallLog.timestamp.desc()).first()
+                 
+                 if not existing_call:
+                     # Fallback: Find ANY recent initiated call (within last 5 mins)
+                     # This effectively merges the "Unknown" webhook to the "Known" demo trigger
+                     import datetime
+                     five_mins_ago = datetime.datetime.utcnow() - datetime.timedelta(minutes=5)
+                     existing_call = db.query(CallLog).filter(
+                         CallLog.status == "initiated",
+                         CallLog.timestamp >= five_mins_ago
+                     ).order_by(CallLog.timestamp.desc()).first()
+
+                 if existing_call:
+                     print(f"Updating existing initiated call ID {existing_call.id}")
+                     existing_call.status = "completed"
+                     existing_call.summary = summary
+                     existing_call.recording_url = recording_url
+                     if duration:
+                         existing_call.duration = int(duration)
+                     db.commit()
+                     print("Call Log UPDATED Successfully!")
+                 else:
+                     # Create new if no pending call found
+                     new_call = CallLog(
+                         phone_number=customer_number,
+                         call_type="inbound/outbound", 
+                         status="completed",
+                         summary=summary,
+                         recording_url=recording_url,
+                         duration=int(duration) if duration else 0
+                     )
+                     db.add(new_call)
+                     db.commit()
+                     print("New Call Log SAVED Successfully!")
+                 
                  sys.stdout.flush()
              except Exception as db_e:
                  print(f"Failed to save call log: {db_e}")
