@@ -467,108 +467,100 @@ async def process_payment(background_tasks: BackgroundTasks, email: str = Form(.
 async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
     import sys
     try:
-        # RAW PAYLOAD LOGGING
+        # RAW PAYLOAD LOGGING (CRITICAL)
         body_bytes = await request.body()
-        print(f"\n🔥 WEBHOOK RECEIVED! Raw Body: {body_bytes.decode('utf-8')}")
+        raw_body_str = body_bytes.decode('utf-8')
+        print(f"\n🔥 WEBHOOK RECEIVED! Raw Body: {raw_body_str}")
         sys.stdout.flush()
 
         try:
-           payload = await request.json()
+           payload = json.loads(raw_body_str)
         except:
            print("Failed to parse JSON")
            return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
 
+        # Normalize message type
         message_type = payload.get("message", {}).get("type") or payload.get("type")
         print(f"Parsed Message Type: {message_type}")
         sys.stdout.flush()
 
-        # Extract the core data object (handles wrapped and unwrapped payloads)
+        # Extract Deeply Nested Logic
+        # Vapi payloads can vary wildly. We assume 'message' or root.
         data = payload.get("message", payload)
         
-        # Log the extracted data for debugging
-        print(f"Extracted Data Keys: {list(data.keys())}")
-        sys.stdout.flush()
-
         if message_type == "function-call":
+             # ... (function call logic preserved) ...
             function_name = data.get("functionCall", {}).get("name")
             parameters = data.get("functionCall", {}).get("parameters", {})
             
             if function_name == "book_appointment":
                 return JSONResponse(content={"result": "Appointment booked successfully for " + parameters.get("time", "tomorrow")})
             elif function_name == "send_sms":
-                 phone = parameters.get("phone")
-                 message = parameters.get("message")
-                 print(f"Vapi requested SMS to {phone}: {message}")
-                 sys.stdout.flush()
-                 return JSONResponse(content={"result": "SMS logged (integration pending)"})
+                 print(f"SMS Request: {parameters}")
+                 return JSONResponse(content={"result": "SMS logged"})
 
         elif message_type == "end-of-call-report" or message_type == "End Of Call Report":
-             # Extract Analysis
+             
+             # Fields Extraction
              analysis = data.get("analysis", {})
+             if not analysis:
+                 analysis = data.get("call", {}).get("analysis", {})
+             
              summary = analysis.get("summary", "No summary provided.")
+             
              recording_url = data.get("recordingUrl")
-             
-             # Extract Duration
-             duration = data.get("durationSeconds", 0)
+             if not recording_url:
+                 recording_url = data.get("call", {}).get("recordingUrl")
+
+             duration = data.get("durationSeconds")
              if not duration:
-                  duration = data.get("endedReason", {}).get("durationSeconds", 0)
+                 duration = data.get("call", {}).get("durationSeconds", 0)
 
-             # Robust extraction of phone number
+             # Phone Extraction
              customer_number = None
+             customer_data = data.get("customer", {})
+             if customer_data: 
+                customer_number = customer_data.get("number")
              
-             # 1. Try data.customer.number
-             if "customer" in data:
-                 customer_number = data["customer"].get("number")
-             
-             # 2. Try data.call.customer.number
-             if not customer_number and "call" in data:
-                 customer_number = data["call"].get("customer", {}).get("number")
-             
-             # 3. Try finding inside artifact (sometimes Vapi puts it there)
              if not customer_number:
-                 customer_number = data.get("artifact", {}).get("customer", {}).get("number")
-
+                 customer_number = data.get("call", {}).get("customer", {}).get("number")
+             
              if not customer_number:
-                  customer_number = "Unknown"
+                 customer_number = "Unknown"
 
              print(f"Saving Call Log -> Phone: {customer_number}, Duration: {duration}s")
              sys.stdout.flush()
 
-             # Save/Update DB
+             # Database Logic
              db = SessionLocal()
              try:
-                 # Check if we have a recent pending call (initiated) that matches or is recent
-                 # This fixes the "Unknown" number issue for outbound API calls
+                 # MERGE STRATEGY V2: Find the LAST initiated call by ID (ignoring timestamp issues)
+                 # This assumes the webhook corresponds to the most recent 'initiated' call.
                  existing_call = None
                  
-                 if customer_number and customer_number != "Unknown":
-                     # Try to find recent call by number
+                 if customer_number != "Unknown":
                      existing_call = db.query(CallLog).filter(
                          CallLog.phone_number == customer_number,
                          CallLog.status == "initiated"
-                     ).order_by(CallLog.timestamp.desc()).first()
+                     ).order_by(CallLog.id.desc()).first()
                  
                  if not existing_call:
-                     # Fallback: Find ANY recent initiated call (within last 5 mins)
-                     # This effectively merges the "Unknown" webhook to the "Known" demo trigger
-                     import datetime
-                     five_mins_ago = datetime.datetime.utcnow() - datetime.timedelta(minutes=5)
+                     # Fallback for "Unknown" webhook -> Match ANY recent initiated call
                      existing_call = db.query(CallLog).filter(
-                         CallLog.status == "initiated",
-                         CallLog.timestamp >= five_mins_ago
-                     ).order_by(CallLog.timestamp.desc()).first()
+                         CallLog.status == "initiated"
+                     ).order_by(CallLog.id.desc()).first()
 
                  if existing_call:
-                     print(f"Updating existing initiated call ID {existing_call.id}")
+                     print(f"🔥 MATCH FOUND! Merging Check: ID {existing_call.id} (Phone: {existing_call.phone_number})")
                      existing_call.status = "completed"
                      existing_call.summary = summary
                      existing_call.recording_url = recording_url
                      if duration:
                          existing_call.duration = int(duration)
                      db.commit()
-                     print("Call Log UPDATED Successfully!")
+                     print("Call Log MERGED Successfully!")
                  else:
-                     # Create new if no pending call found
+                     print("No Initiated call found to merge. Creating new row.")
                      new_call = CallLog(
                          phone_number=customer_number,
                          call_type="inbound/outbound", 
@@ -588,6 +580,7 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
              finally:
                  db.close()
 
+             # Email Logic (Admin)
              admin_email = os.getenv("MAIL_USERNAME")
              if admin_email:
                  email_body = f"<h1>New Call</h1><p>Duration: {duration}s</p><p>{summary}</p><p><a href='{recording_url}'>Recording</a></p>"
