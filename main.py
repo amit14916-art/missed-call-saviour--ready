@@ -263,6 +263,10 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None):
         print("Skipping Vapi call (not configured): Missing VAPI_PRIVATE_KEY or VAPI_ASSISTANT_ID")
         return
 
+    webhook_url = f"{DOMAIN}/api/vapi/webhook"
+    if "127.0.0.1" in webhook_url or "localhost" in webhook_url:
+        webhook_url = "https://missed-call-saviour-ready-production.up.railway.app/api/vapi/webhook"
+
     payload = {
       "assistantId": vapi_assistant_id,
       "customer": {
@@ -271,17 +275,20 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None):
       "phoneNumberId": vapi_phone_number_id,
     }
     
-    if message:
-         payload["assistant"] = {
-             "firstMessage": message,
-              "model": {
-                 "provider": "openai",
-                 "model": "gpt-3.5-turbo",
-                 "messages": [
-                     {"role": "system", "content": "You are a helpful assistant for an Indian business. Speak in a mix of Hindi and English (Hinglish). Keep responses short and professional."}
-                 ]
-             }
+    # Always include assistant overrides to force serverUrl
+    payload["assistant"] = {
+         "serverUrl": webhook_url,
+         "model": {
+             "provider": "openai",
+             "model": "gpt-3.5-turbo",
+             "messages": [
+                 {"role": "system", "content": "You are a helpful assistant for an Indian business. Speak in a mix of Hindi and English (Hinglish). Keep responses short and professional."}
+             ]
          }
+    }
+    
+    if message:
+         payload["assistant"]["firstMessage"] = message
 
     headers = {
         "Authorization": f"Bearer {vapi_private_key}",
