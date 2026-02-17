@@ -4,7 +4,7 @@ pydantic<2.0.0
 email-validator
 jinja2
 python-multipart
-fastapi-mail==1.4.1
+fastapi-mail==1.2.0
 python-dotenv
 sqlalchemy
 psycopg2-binary
