@@ -40,7 +40,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL:
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    engine = create_engine(DATABASE_URL)
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 else:
     print("WARNING: Using Local SQLite Database. Data will be lost on re-deploy!")
     SQLALCHEMY_DATABASE_URL = "sqlite:////tmp/missed_calls.db"
@@ -85,7 +85,7 @@ class CallLog(Base):
     duration = Column(Integer, default=0) # Added duration
     timestamp = Column(DateTime, default=datetime.utcnow)
 
-Base.metadata.create_all(bind=engine)
+# Table creation moved to startup_event
 
 # ... (rest of code)
 
@@ -538,8 +538,9 @@ class AIConfig(Base):
     user_email = Column(String, index=True) # Linking by email for MVP simplicity
     business_name = Column(String, default="My Business")
     greeting = Column(String, default="Namaste! Main kaise help kar sakta hoon?")
+    persona = Column(String, default="friendly") # New Persona Field
 
-Base.metadata.create_all(bind=engine)
+# Table creation moved to startup_event
 
 # ... (rest of code)
 
@@ -550,10 +551,12 @@ async def get_ai_config(current_user: User = Depends(get_current_user), db: Sess
         return {
             "business_name": "My Business",
             "greeting": "Namaste! Main My Business se bol raha hoon. Kya main aapki help kar sakta hoon?",
+            "persona": "friendly"
         }
     return {
         "business_name": config.business_name,
-        "greeting": config.greeting
+        "greeting": config.greeting,
+        "persona": config.persona if hasattr(config, "persona") else "friendly"
     }
 
 @app.post("/api/ai-config")
@@ -562,39 +565,62 @@ async def update_ai_config(
     current_user: User = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
+    # 1. Save to DB
     try:
         data = await request.json()
         business_name = data.get("business_name")
         greeting = data.get("greeting")
+        persona = data.get("persona", "friendly")
         
-        # 1. Save to DB
         config = db.query(AIConfig).filter(AIConfig.user_email == current_user.email).first()
         if not config:
-            config = AIConfig(user_email=current_user.email, business_name=business_name, greeting=greeting)
+            config = AIConfig(user_email=current_user.email, business_name=business_name, greeting=greeting, persona=persona)
             db.add(config)
         else:
             config.business_name = business_name
             config.greeting = greeting
+            config.persona = persona
         db.commit()
+    except Exception as e:
+        print(f"DB Update Error: {e}")
+        return JSONResponse(status_code=500, content={"error": f"Database Error: {str(e)}"})
 
-        # 2. Update Vapi Assistant via API
-        vapi_url = f"https://api.vapi.ai/assistant/{os.getenv('VAPI_ASSISTANT_ID')}"
+    # 2. Update Vapi Assistant via API
+    vapi_private_key = os.getenv('VAPI_PRIVATE_KEY')
+    vapi_assistant_id = os.getenv('VAPI_ASSISTANT_ID')
+
+    if not vapi_private_key or not vapi_assistant_id:
+        print("Vapi environment variables missing.")
+        # We perform a soft failure here - DB updated, but Vapi not connected
+        return JSONResponse(content={"success": True, "message": "Settings saved to DB, but Vapi Agent not updated (Missing API Keys)."})
+
+    try:
+        vapi_url = f"https://api.vapi.ai/assistant/{vapi_assistant_id}"
         headers = {
-            "Authorization": f"Bearer {os.getenv('VAPI_PRIVATE_KEY')}",
+            "Authorization": f"Bearer {vapi_private_key}",
             "Content-Type": "application/json"
         }
         
+        # Determine Prompt based on Persona
+        tone_instruction = ""
+        if persona == "professional":
+            tone_instruction = "Tone: Be strictly professional, polite, and concise. Use formal language (Aap, Sir/Ma'am). reliable and trustworthy."
+        elif persona == "urgent":
+            tone_instruction = "Tone: Be high-energy (sales mode). Create urgency. Focus on booking the appointment NOW. Use persuasive language."
+        else: # friendly
+            tone_instruction = "Tone: Be warm, engaging, and patient like a friend. Use natural Hinglish with common words like 'Ji', 'Haan', 'Thik hai'."
+
         # New "Conversational Hinglish" Prompt
         updated_prompt = f"""
-        Role: You are a friendly and professional AI receptionist for {business_name}.
+        Role: You are a {persona} AI receptionist for {business_name}.
         Context: You are handling calls for an Indian business.
-        Language: Speak in natural Hinglish (mix of Hindi and English). Use common Indian conversational words like 'Ji', 'Haan', 'Thik hai', 'Samajh gaya'.
-        Tone: Be warm, engaging, and patient. Do NOT be robotic or too short. Have a proper conversation.
+        Language: Speak in natural Hinglish (mix of Hindi and English).
+        {tone_instruction}
         Task: 
         1. Start by welcoming them with: "{greeting}"
         2. Understand their query (Appointment, Price, or General Info).
         3. Explain details clearly in Hinglish.
-        4. Always ask a follow-up question to keep the chat alive (e.g., "Kya aapko aur kuch janna hai?" or "Kya main ye book kar du?").
+        4. Always ask a follow-up question to keep the chat alive.
         
         Guardrails:
         - If they speak English, reply in English.
@@ -608,7 +634,6 @@ async def update_ai_config(
                     {"role": "system", "content": updated_prompt}
                 ]
             },
-            # "firstMessage": greeting REMOVED to let system prompt handle flow or use dynamic if needed
         }
         
         async with httpx.AsyncClient() as client:
@@ -616,14 +641,13 @@ async def update_ai_config(
             
             if response.status_code != 200:
                 print(f"Vapi Update Error: {response.text}")
-                # Don't raise error to UI if DB save worked, just log it
-                # raise HTTPException(status_code=500, detail="Failed to update AI Assistant")
+                return JSONResponse(status_code=500, content={"error": f"Vapi Error: {response.text}"})
                 
         return {"success": True, "message": "AI Settings Updated!"}
 
     except Exception as e:
-        print(f"Config Update Error: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        print(f"Vapi Config Update Exception: {e}")
+        return JSONResponse(status_code=500, content={"error": f"Vapi Client Error: {str(e)}"})
 
 # Razorpay Routes
 @app.post("/api/razorpay/create-order")
@@ -660,6 +684,37 @@ async def verify_razorpay_payment(background_tasks: BackgroundTasks, razorpay_pa
          return JSONResponse(status_code=400, content={"error": "Payment verification failed"})
     except Exception as e:
          return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.on_event("startup")
+async def startup_event():
+    """
+    Ensure the DB schema is up to date on startup.
+    Compatible with both SQLite and PostgreSQL.
+    """
+    try:
+        from sqlalchemy import text, inspect
+        # ensure tables exist
+        Base.metadata.create_all(bind=engine)
+
+        # Use a fresh connection for migration check
+        with engine.connect() as connection:
+            # Check if ai_configs has persona column
+            try:
+                inspector = inspect(engine)
+                if inspector.has_table("ai_configs"):
+                    columns = [col['name'] for col in inspector.get_columns("ai_configs")]
+                    
+                    if "persona" not in columns:
+                        print("Migrating DB: Adding persona column to ai_configs...")
+                        # Use generic SQL standard syntax
+                        connection.execute(text("ALTER TABLE ai_configs ADD COLUMN persona VARCHAR(50) DEFAULT 'friendly'"))
+                        connection.commit()
+                        print("Migration successful.")
+            except Exception as e:
+                print(f"Migration step failed: {e}")
+                
+    except Exception as e:
+        print(f"Startup check failed: {e}")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
