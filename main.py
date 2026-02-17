@@ -37,14 +37,14 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # --- Database Setup ---
 DATABASE_URL = os.getenv("DATABASE_URL")
-if DATABASE_URL:
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-else:
-    print("WARNING: Using Local SQLite Database. Data will be lost on re-deploy!")
-    SQLALCHEMY_DATABASE_URL = "sqlite:////tmp/missed_calls.db"
-    engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+if not DATABASE_URL:
+    # Fail fast if no database is configured (Production Safety)
+    raise ValueError("CRITICAL: DATABASE_URL is not set. App cannot start without a database.")
+
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -715,6 +715,21 @@ async def startup_event():
                 
     except Exception as e:
         print(f"Startup check failed: {e}")
+
+
+@app.get("/api/debug-env")
+async def debug_env():
+    import os
+    keys = list(os.environ.keys())
+    vapi_key = os.getenv("VAPI_PRIVATE_KEY")
+    vapi_id = os.getenv("VAPI_ASSISTANT_ID")
+    return {
+        "all_keys": [k for k in keys if "VAPI" in k or "DATABASE" in k],
+        "vapi_private_key_exists": bool(vapi_key),
+        "vapi_private_key_length": len(vapi_key) if vapi_key else 0,
+        "vapi_private_key_first_5": vapi_key[:5] if vapi_key else "None",
+        "vapi_assistant_id": vapi_id
+    }
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
