@@ -1,10 +1,10 @@
 fastapi
 uvicorn
-pydantic>=2.7.0
+pydantic<2.0.0
 email-validator
 jinja2
 python-multipart
-fastapi-mail
+fastapi-mail==1.4.1
 python-dotenv
 sqlalchemy
 psycopg2-binary
@@ -13,4 +13,3 @@ httpx
 passlib[sha256_crypt]
 python-jose[cryptography]
 razorpay
-pydantic-settings
