@@ -442,12 +442,22 @@ async def process_payment(background_tasks: BackgroundTasks, email: str = Form(.
 
 @app.post("/api/vapi/webhook")
 async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
+    import sys
     try:
-        payload = await request.json()
+        # RAW PAYLOAD LOGGING
+        body_bytes = await request.body()
+        print(f"\n🔥 WEBHOOK RECEIVED! Raw Body: {body_bytes.decode('utf-8')}")
+        sys.stdout.flush()
+
+        try:
+           payload = await request.json()
+        except:
+           print("Failed to parse JSON")
+           return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
+
         message_type = payload.get("message", {}).get("type") or payload.get("type")
-        if message_type == "end-of-call-report" or message_type == "function-call":
-            import json
-            print(f"FULL VAPI PAYLOAD: {json.dumps(payload)}")
+        print(f"Parsed Message Type: {message_type}")
+        sys.stdout.flush()
 
         if message_type == "function-call":
             function_name = payload.get("functionCall", {}).get("name")
