@@ -284,16 +284,10 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None):
       "phoneNumberId": vapi_phone_number_id,
     }
     
-    # Always include assistant overrides to force serverUrl
+    # Only override serverUrl (webhook) to ensure we capture logs
+    # We DO NOT override 'model' or 'messages' anymore, so Vapi Dashboard settings are used.
     payload["assistant"] = {
-         "serverUrl": webhook_url,
-         "model": {
-             "provider": "openai",
-             "model": "gpt-3.5-turbo",
-             "messages": [
-                 {"role": "system", "content": "You are a helpful assistant for an Indian business. Speak in a mix of Hindi and English (Hinglish). Keep responses short and professional."}
-             ]
-         }
+         "serverUrl": webhook_url
     }
     
     if message:
@@ -417,29 +411,35 @@ async def signup(background_tasks: BackgroundTasks, email: str = Form(...), pass
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/send-demo-call")
-async def send_demo_call(background_tasks: BackgroundTasks, phone: str = Form(...), db: Session = Depends(get_db)):
-    print(f"Received demo Call request for: {phone}")
+async def send_demo_call(
+    background_tasks: BackgroundTasks, 
+    phone: str = Form(...), 
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    print(f"Received demo Call request for: {phone} from {current_user.email}")
     
-    # 1. Log the call immediately so it shows in dashboard even if webhook fails/is delayed
+    # 1. Log the call immediately
     try:
         new_call = CallLog(
             phone_number=phone,
             call_type="outbound-demo", 
             status="initiated",
-            summary="Demo call initiated from dashboard.",
+            summary=f"Demo call initiated (Vapi Settings)",
             recording_url=None,
-            duration=0
+            duration=0,
+            user_email=current_user.email 
         )
         db.add(new_call)
         db.commit()
-        print(f"Logged initiated call for {phone}")
     except Exception as e:
         print(f"Failed to log initial call: {e}")
 
-    # Direct Call for improved reliability on free tier
+    # Direct Call - strict usage of Vapi Dashboard Settings
     try:
-        # Default Demo Call Message (Hinglish)
-        await trigger_vapi_outbound_call(phone, "Namaste! Main Missed Call Saviour se bol raha hu. Ye ek demo call hai aapke business ke liye.")
+        # We pass a generic opening message just to start the call, 
+        # but the Persona/System Prompt comes from Vapi now.
+        await trigger_vapi_outbound_call(phone, "Namaste! This is a demo call from Missed Call Saviour.")
         return {"success": True, "message": "Demo call initiated successfully."}
     except Exception as e:
         print(f"Error in demo call endpoint: {e}")
@@ -475,6 +475,7 @@ async def process_payment(background_tasks: BackgroundTasks, email: str = Form(.
 @app.post("/api/vapi/webhook")
 async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
     import sys
+    import json
     try:
         # RAW PAYLOAD LOGGING (CRITICAL)
         body_bytes = await request.body()
@@ -516,6 +517,7 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                  analysis = data.get("call", {}).get("analysis", {})
              
              summary = analysis.get("summary", "No summary provided.")
+             print(f"📝 SUMMARY EXTRACTED: {summary}")
              
              recording_url = data.get("recordingUrl")
              if not recording_url:

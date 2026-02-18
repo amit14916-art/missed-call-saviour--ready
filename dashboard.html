@@ -302,9 +302,7 @@
                     <div class="menu-item" onclick="showView('logs')">
                         <span>📞</span> Call Logs
                     </div>
-                    <div class="menu-item" onclick="showView('settings')">
-                        <span>⚙️</span> AI Settings
-                    </div>
+
 
                     <div class="menu-item" onclick="showView('billing')">
                         <span>💳</span> Billing
@@ -313,7 +311,7 @@
             </div>
 
             <div style="font-size: 0.8rem; color: #475569; text-align: center;">
-                v2.0.1 Antigravity
+                v2.1.0 (Fresh)
             </div>
         </div>
 
@@ -503,40 +501,7 @@
                 </div>
             </div>
 
-            <!-- AI SETTINGS VIEW -->
-            <div id="settings-view" class="view-section" style="display: none;">
-                <div class="glass-panel" style="max-width: 600px; padding: 40px;">
-                    <h3 style="margin-top: 0; margin-bottom: 24px;">Configure Your Agent</h3>
 
-                    <form onsubmit="handleConfigUpdate(event)">
-                        <div class="form-group">
-                            <label>Business Name</label>
-                            <input type="text" id="configBusinessName" placeholder="e.g. Acme Corp">
-                        </div>
-
-                        <div class="form-group">
-                            <label>Agent Persona</label>
-                            <select id="configPersona" style="width: 100%;">
-                                <option value="friendly">Friendly & Casual</option>
-                                <option value="professional">Strictly Professional</option>
-                                <option value="urgent">High Urgency (Sales)</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>AI Greeting Message</label>
-                            <textarea id="configGreeting" rows="4"
-                                placeholder="Hello! Thanks for calling..."></textarea>
-                            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px;">
-                                This is the first thing your AI will say when it picks up the phone.
-                            </p>
-                        </div>
-
-                        <button type="submit" class="btn" id="saveConfigBtn">Save Configuration</button>
-                        <div id="configMsg" style="margin-top: 16px; display: none;"></div>
-                    </form>
-                </div>
-            </div>
 
 
 
@@ -618,8 +583,7 @@
                     // Fetch Dashboard Stats
                     fetchDashboardStats(token);
 
-                    // Fetch AI Config
-                    fetchAIConfig(token);
+
 
                     // Initialize Chart
                     renderChart();
@@ -679,70 +643,7 @@
             }
         }
 
-        async function fetchAIConfig(token) {
-            try {
-                const response = await fetch('/api/ai-config', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (response.ok) {
-                    const config = await response.json();
-                    const nameInput = document.getElementById('configBusinessName');
-                    const greetingInput = document.getElementById('configGreeting');
-                    const personaInput = document.getElementById('configPersona');
 
-                    if (nameInput) nameInput.value = config.business_name || "";
-                    if (greetingInput) greetingInput.value = config.greeting || "";
-                    if (personaInput) personaInput.value = config.persona || "friendly";
-                }
-            } catch (e) {
-                console.error("Failed to fetch config", e);
-            }
-        }
-
-        async function handleConfigUpdate(e) {
-            e.preventDefault();
-            const token = localStorage.getItem('token');
-            const btn = document.getElementById('saveConfigBtn');
-            const msg = document.getElementById('configMsg');
-
-            const businessName = document.getElementById('configBusinessName').value;
-            const greeting = document.getElementById('configGreeting').value;
-            const persona = document.getElementById('configPersona').value;
-
-            btn.disabled = true;
-            btn.innerText = "Updating AI Brain...";
-            msg.style.display = 'none';
-
-            try {
-                const response = await fetch('/api/ai-config', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        business_name: businessName,
-                        greeting: greeting,
-                        persona: persona
-                    })
-                });
-
-                if (response.ok) {
-                    msg.style.display = 'block';
-                    msg.style.color = '#34d399';
-                    msg.innerText = "Success! Your AI has been updated instantly.";
-                } else {
-                    throw new Error("Update failed");
-                }
-            } catch (e) {
-                msg.style.display = 'block';
-                msg.style.color = '#ef4444';
-                msg.innerText = "Error updating settings. Please try again.";
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "Save Configuration";
-            }
-        }
 
         function getTimeAgo(date) {
             const seconds = Math.floor((new Date() - date) / 1000);
@@ -843,7 +744,6 @@
             const titles = {
                 'dashboard': 'Dashboard Overview',
                 'logs': 'Call Logs & Transcripts',
-                'settings': 'Agent Configuration',
 
                 'billing': 'Billing & Payments'
             };
@@ -876,8 +776,12 @@
                 const formData = new FormData();
                 formData.append('phone', phone);
 
+                const token = localStorage.getItem('token');
                 const response = await fetch('/api/send-demo-call', {
                     method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
                     body: formData
                 });
 
