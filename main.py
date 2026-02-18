@@ -106,8 +106,9 @@ class CallLog(Base):
     call_type = Column(String) 
     status = Column(String) 
     summary = Column(String, nullable=True)
+    transcript = Column(String, nullable=True) # Added transcript column
     recording_url = Column(String, nullable=True)
-    duration = Column(Integer, default=0) # Added duration
+    duration = Column(Integer, default=0) 
     timestamp = Column(DateTime, default=datetime.utcnow)
 
 # Table creation moved to startup_event
@@ -527,6 +528,16 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
              if not duration:
                  duration = data.get("call", {}).get("durationSeconds", 0)
 
+             # Transcript Extraction
+             transcript = data.get("transcript")
+             if not transcript:
+                 transcript = data.get("artifact", {}).get("transcript")
+             if not transcript:
+                 transcript = data.get("call", {}).get("transcript")
+             
+             if not transcript:
+                 transcript = "Transcript not provided."
+
              # Phone Extraction
              customer_number = None
              customer_data = data.get("customer", {})
@@ -542,41 +553,52 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
              print(f"Saving Call Log -> Phone: {customer_number}, Duration: {duration}s", flush=True)
              sys.stdout.flush()
 
-             # Database Logic
+             # Database Logic (Simplified Merge)
              db = SessionLocal()
              try:
-                 # MERGE STRATEGY V2: Find the LAST initiated call by ID (ignoring timestamp issues)
-                 # This assumes the webhook corresponds to the most recent 'initiated' call.
                  existing_call = None
                  
+                 # Try matching by Phone + Initiated
                  if customer_number != "Unknown":
                      existing_call = db.query(CallLog).filter(
                          CallLog.phone_number == customer_number,
                          CallLog.status == "initiated"
                      ).order_by(CallLog.id.desc()).first()
                  
+                 # Fallback: Match ANY recent initiated call
                  if not existing_call:
-                     # Fallback for "Unknown" webhook -> Match ANY recent initiated call
                      existing_call = db.query(CallLog).filter(
                          CallLog.status == "initiated"
                      ).order_by(CallLog.id.desc()).first()
 
                  if existing_call:
-                     print(f"🔥 MATCH FOUND! Merging Check: ID {existing_call.id} (Phone: {existing_call.phone_number})")
+                     print(f"🔥 MATCH FOUND! Merging Check: ID {existing_call.id}")
                      existing_call.status = "completed"
-                     existing_call.summary = summary
-                     existing_call.recording_url = recording_url
+                     
+                     # Update fields only if they have values
+                     if summary and summary != "No summary provided.":
+                         existing_call.summary = summary
+                     
+                     # COMMENTED OUT UNTIL DB MIGRATION IS CONFIRMED
+                     # if transcript:
+                     #    existing_call.transcript = transcript
+                     
+                     if recording_url:
+                         existing_call.recording_url = recording_url
+                     
                      if duration:
                          existing_call.duration = int(duration)
+                         
                      db.commit()
-                     print("Call Log MERGED Successfully!")
+                     print("Call Log MERGED Successfully!", flush=True)
                  else:
-                     print("No Initiated call found to merge. Creating new row.")
+                     print("No Initiated call found. Creating new row.", flush=True)
                      new_call = CallLog(
                          phone_number=customer_number,
-                         call_type="inbound/outbound", 
+                         call_type="inbound", 
                          status="completed",
                          summary=summary,
+                         # transcript=transcript, # COMMENTED OUT
                          recording_url=recording_url,
                          duration=int(duration) if duration else 0
                      )
@@ -584,10 +606,8 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                      db.commit()
                      print("New Call Log SAVED Successfully!", flush=True)
                  
-                 sys.stdout.flush()
              except Exception as db_e:
-                 print(f"Failed to save call log: {db_e}")
-                 sys.stdout.flush()
+                 print(f"Failed to save call log: {db_e}", flush=True)
              finally:
                  db.close()
 
