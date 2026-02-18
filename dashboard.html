@@ -310,7 +310,10 @@
                     <div class="menu-item" onclick="showView('settings')">
                         <span>⚙️</span> Settings
                     </div>
-
+                    <div id="admin-sidebar-item" class="menu-item" onclick="showView('admin')"
+                        style="display: none; border-top: 1px solid var(--glass-border); margin-top: 10px; color: #fbbf24;">
+                        <span>🛡️</span> Admin Panel
+                    </div>
                 </div>
             </div>
 
@@ -578,6 +581,38 @@
 
 
             </div>
+
+            <!-- ADMIN VIEW -->
+            <div id="admin-view" class="view-section" style="display: none;">
+                <div class="glass-panel" style="padding: 20px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <p style="color: #94a3b8; margin: 0;">System Overview & User Management</p>
+                        <button class="btn" onclick="fetchAdminUsers()" style="padding: 8px 16px; font-size: 0.9rem;">🔄
+                            Refresh</button>
+                    </div>
+                    <div class="table-container">
+                        <table id="admin-users-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Email</th>
+                                    <th>Business Name</th>
+                                    <th>Plan</th>
+                                    <th>Calls</th>
+                                    <th>Agent Status</th>
+                                    <th>Joined</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="7" style="text-align:center;">Loading users...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Transcript Modal -->
@@ -626,6 +661,14 @@
                                 statusBadge.innerText = "Active";
                                 statusBadge.className = "status-badge status-active";
                             }
+                        }
+
+                        // Admin Check
+                        if (user.is_admin) {
+                            const adminItem = document.getElementById('admin-sidebar-item');
+                            if (adminItem) adminItem.style.display = 'flex';
+                            // Fetch Admin Data if we are already in admin view (persisted state)
+                            // But for now, just enable the button.
                         }
 
 
@@ -1082,6 +1125,51 @@
 
 
 
+            async function fetchAdminUsers() {
+                const token = localStorage.getItem('token');
+                const tbody = document.querySelector("#admin-users-table tbody");
+
+                try {
+                    const response = await fetch('/api/admin/users', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (response.ok) {
+                        const users = await response.json();
+                        tbody.innerHTML = "";
+
+                        if (users.length === 0) {
+                            tbody.innerHTML = "<tr><td colspan='7' style='text-align:center;'>No users found.</td></tr>";
+                            return;
+                        }
+
+                        users.forEach(u => {
+                            const agentStatus = u.vapi_assistant_id && u.vapi_assistant_id !== "Not Created"
+                                ? `<span style="color:#34d399;">✅ Deployed</span>`
+                                : `<span style="color:#fbbf24;">⚠️ Pending</span>`;
+
+                            const row = `
+                                <tr>
+                                    <td>#${u.id}</td>
+                                    <td>${u.email} ${u.is_admin ? '👑' : ''}</td>
+                                    <td>${u.business_name}</td>
+                                    <td><span class="tag info">${u.plan}</span></td>
+                                    <td>${u.total_calls}</td>
+                                    <td>${u.status}</td>
+                                    <td>${agentStatus}</td>
+                                    <td>${u.joined_at}</td>
+                                </tr>
+                            `;
+                            tbody.insertAdjacentHTML('beforeend', row);
+                        });
+                    } else {
+                        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: #ef4444;">Failed to load users: ${response.status}</td></tr>`;
+                    }
+                } catch (e) {
+                    console.error("Admin fetch error", e);
+                    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: #ef4444;">Error loading data.</td></tr>`;
+                }
+            }
         </script>
         <script src="/chatbot.js"></script>
 </body>

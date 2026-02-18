@@ -145,6 +145,7 @@ async def startup_event():
             with engine.connect() as conn:
                 conn.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE"))
                 conn.execute(text("UPDATE users SET is_admin = TRUE WHERE id = 1")) # Make first user Admin
+                conn.execute(text("UPDATE users SET is_admin = TRUE WHERE email = 'amit14916@gmail.com'")) # Ensure Amit is Admin
                 conn.commit()
             print("✅ Auto-migration successful: 'is_admin' column added & User 1 promoted!", flush=True)
 
@@ -174,6 +175,15 @@ async def startup_event():
 
     except Exception as e:
         print(f"❌ Auto-migration failed: {e}", flush=True)
+
+    # Force Specific Admin Update (Run every time to ensure access)
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("UPDATE users SET is_admin = TRUE WHERE email = 'amit14916@gmail.com'"))
+            conn.commit()
+            print("✅ Admin privileges explicitly granted to amit14916@gmail.com")
+    except Exception as e:
+        print(f"⚠️ Failed to force admin update: {e}")
 
 # Define Dependency
 def get_db():
