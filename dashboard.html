@@ -310,9 +310,7 @@
                     <div class="menu-item" onclick="showView('settings')">
                         <span>⚙️</span> Settings
                     </div>
-                    <div class="menu-item" id="admin-menu-item" onclick="showView('admin')" style="display: none;">
-                        <span>🔒</span> Admin
-                    </div>
+
                 </div>
             </div>
 
@@ -576,37 +574,7 @@
                     </div>
                 </div>
 
-                <!-- ADMIN VIEW -->
-                <div id="admin-view" class="view-section" style="display: none;">
-                    <div class="glass-panel" style="padding: 24px;">
-                        <div
-                            style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                            <h3 style="margin:0;">User Management (Admin)</h3>
-                            <button onclick="loadAdminPanel()" class="btn"
-                                style="padding:6px 16px; font-size:0.8rem;">Refresh List</button>
-                        </div>
-                        <div class="table-container">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Email</th>
-                                        <th>Business</th>
-                                        <th>Plan</th>
-                                        <th>Stats</th>
-                                        <th>Vapi Agent ID</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="admin-users-table">
-                                    <tr>
-                                        <td colspan="7" style="text-align:center;">Loading...</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+
 
 
             </div>
@@ -660,11 +628,7 @@
                             }
                         }
 
-                        // Admin Check
-                        if (user.is_admin) {
-                            const adminLink = document.getElementById('admin-menu-item');
-                            if (adminLink) adminLink.style.display = 'flex';
-                        }
+
 
                         // Fetch Call Logs
                         fetchCallLogs(token);
@@ -1116,49 +1080,7 @@
                 }
             }
 
-            async function loadAdminPanel() {
-                const token = localStorage.getItem('token');
-                const tbody = document.getElementById('admin-users-table');
-                if (!tbody) return;
 
-                tbody.innerHTML = "<tr><td colspan='7' style='text-align:center;'>Loading data...</td></tr>";
-
-                try {
-                    const response = await fetch('/api/admin/users', {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-
-                    if (response.ok) {
-                        const users = await response.json();
-                        tbody.innerHTML = "";
-
-                        if (users.length === 0) {
-                            tbody.innerHTML = "<tr><td colspan='7' style='text-align:center;'>No users found.</td></tr>";
-                            return;
-                        }
-
-                        users.forEach(u => {
-                            const row = `
-                            <tr>
-                                <td>#${u.id}</td>
-                                <td>${u.email} ${u.is_admin ? ' (Admin)' : ''}</td>
-                                <td>${u.business_name}</td>
-                                <td>${u.plan}</td>
-                                <td>${u.total_calls} Calls</td>
-                                <td style="font-family:monospace; color:${u.vapi_assistant_id !== 'Not Created' ? '#34d399' : '#94a3b8'}">${u.vapi_assistant_id}</td>
-                                <td><span class="status-badge ${u.status === 'Active' ? 'status-active' : 'status-inactive'}">${u.status}</span></td>
-                            </tr>
-                        `;
-                            tbody.insertAdjacentHTML('beforeend', row);
-                        });
-                    } else {
-                        tbody.innerHTML = "<tr><td colspan='7' style='text-align:center; color:#ef4444;'>Failed to load users. Permissions denied?</td></tr>";
-                    }
-                } catch (e) {
-                    console.error("Admin fetch error", e);
-                    tbody.innerHTML = "<tr><td colspan='7' style='text-align:center; color:#ef4444;'>Error loading data.</td></tr>";
-                }
-            }
 
         </script>
         <script src="/chatbot.js"></script>
