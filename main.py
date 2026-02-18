@@ -989,6 +989,61 @@ async def create_razorpay_order(email: str = Form(...), plan: str = Form(...)):
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+# --- Android / Automation Hook ---
+@app.get("/api/hooks/android-trigger")
+async def android_trigger_callback(
+    phone: str, 
+    email: str, 
+    db: Session = Depends(get_db)
+):
+    """
+    Called by MacroDroid/IFTTT when a missed call occurs on the phone.
+    Triggers the AI Agent to call the 'phone' number immediately.
+    """
+    print(f"📳 Mobile Hook Triggered! Owner: {email}, Target: {phone}")
+    
+    # 1. Clean Phone Number
+    target_phone = phone.replace(" ", "").replace("-", "")
+    if not target_phone.startswith("+"):
+        # Assume India +91 if missing, or generic +
+        target_phone = "+" + target_phone
+        
+    # 2. Get User Config
+    config = db.query(AIConfig).filter(AIConfig.user_email == email).first()
+    if not config or not config.vapi_assistant_id:
+        return JSONResponse(status_code=404, content={"error": "User AI Agent not configured yet."})
+        
+    # 3. Call Vapi (Outbound)
+    try:
+        from config_secrets import VAPI_PHONE_NUMBER_ID, VAPI_PRIVATE_KEY
+        
+        url = "https://api.vapi.ai/call"
+        headers = {
+            "Authorization": f"Bearer {VAPI_PRIVATE_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "assistantId": config.vapi_assistant_id,
+            "phoneNumberId": VAPI_PHONE_NUMBER_ID, # Uses the System Twilio Number
+            "customer": {
+                "number": target_phone
+            }
+        }
+        
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, json=payload, headers=headers)
+            print(f"Vapi Call Request: {resp.status_code} - {resp.text}")
+            
+            if resp.status_code == 201:
+                return {"success": True, "message": "AI is calling back now!", "target": target_phone}
+            else:
+                return JSONResponse(status_code=500, content={"error": "Vapi Failed", "details": resp.json()})
+                
+    except Exception as e:
+        print(e)
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
 @app.post("/api/razorpay/verify")
 async def verify_razorpay_payment(background_tasks: BackgroundTasks, razorpay_payment_id: str = Form(...), razorpay_order_id: str = Form(...), razorpay_signature: str = Form(...), email: str = Form(...), plan: str = Form(...), db: Session = Depends(get_db)):
     if not razorpay_client:
