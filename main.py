@@ -503,7 +503,7 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
              if not analysis:
                  analysis = data.get("call", {}).get("analysis", {})
              
-             summary = analysis.get("summary", "No summary provided.")
+             summary = analysis.get("summary") or "No summary provided."
              print(f"📝 SUMMARY EXTRACTED: {summary}", flush=True)
              
              recording_url = data.get("recordingUrl")
@@ -521,8 +521,7 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
              if not transcript:
                  transcript = data.get("call", {}).get("transcript")
              
-             if not transcript:
-                 transcript = "Transcript not provided."
+             transcript = transcript or "Transcript not provided."
 
              # Phone Extraction
              customer_number = None
