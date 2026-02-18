@@ -310,6 +310,9 @@
                     <div class="menu-item" onclick="showView('settings')">
                         <span>⚙️</span> Settings
                     </div>
+                    <div class="menu-item" id="admin-menu-item" onclick="showView('admin')" style="display: none;">
+                        <span>🔒</span> Admin
+                    </div>
                 </div>
             </div>
 
@@ -572,110 +575,148 @@
                         <p id="config-msg" style="margin-top: 10px; font-size: 0.9rem; display: none;"></p>
                     </div>
                 </div>
+
+                <!-- ADMIN VIEW -->
+                <div id="admin-view" class="view-section" style="display: none;">
+                    <div class="glass-panel" style="padding: 24px;">
+                        <div
+                            style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                            <h3 style="margin:0;">User Management (Admin)</h3>
+                            <button onclick="loadAdminPanel()" class="btn"
+                                style="padding:6px 16px; font-size:0.8rem;">Refresh List</button>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Email</th>
+                                        <th>Business</th>
+                                        <th>Plan</th>
+                                        <th>Stats</th>
+                                        <th>Vapi Agent ID</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-users-table">
+                                    <tr>
+                                        <td colspan="7" style="text-align:center;">Loading...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+
             </div>
-
         </div>
-    </div>
 
-    <!-- Transcript Modal -->
-    <div id="transcript-modal" class="glass-panel"
-        style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; width: 90%; max-width: 600px; padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h3 style="margin: 0;">Call Details</h3>
-            <button onclick="closeModal()"
-                style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem;">&times;</button>
+        <!-- Transcript Modal -->
+        <div id="transcript-modal" class="glass-panel"
+            style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; width: 90%; max-width: 600px; padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0;">Call Details</h3>
+                <button onclick="closeModal()"
+                    style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div id="modal-content" style="line-height: 1.6; color: #e2e8f0; max-height: 400px; overflow-y: auto;">
+                Loading...
+            </div>
+            <div style="margin-top: 20px; text-align: right;">
+                <button class="btn" onclick="closeModal()">Close</button>
+            </div>
         </div>
-        <div id="modal-content" style="line-height: 1.6; color: #e2e8f0; max-height: 400px; overflow-y: auto;">
-            Loading...
+        <div id="modal-overlay" onclick="closeModal()"
+            style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 999;">
         </div>
-        <div style="margin-top: 20px; text-align: right;">
-            <button class="btn" onclick="closeModal()">Close</button>
-        </div>
-    </div>
-    <div id="modal-overlay" onclick="closeModal()"
-        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 999;">
-    </div>
 
-    <script>
-        // Check Auth and Load User Data
-        async function initDashboard() {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                console.log("No token found - redirecting to login");
-                window.location.href = '/login';
-                return;
-            }
-
-            try {
-                // Fetch User Info
-                const response = await fetch('/api/users/me', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                if (response.ok) {
-                    const user = await response.json();
-                    document.getElementById('user-email-header').innerText = user.email;
-                    document.getElementById('plan-badge').innerText = user.plan + " Plan";
-
-                    if (user.is_active) {
-                        const statusBadge = document.getElementById('status-badge');
-                        statusBadge.innerText = "Active";
-                        statusBadge.className = "status-badge status-active";
-                    }
-
-                    // Fetch Call Logs
-                    fetchCallLogs(token);
-
-                    // Fetch Dashboard Stats
-                    fetchDashboardStats(token);
-
-                    // Fetch AI Config
-                    fetchAIConfig(token);
-
-
-
-                    // Initialize Chart
-                    renderChart();
-
-                } else {
-                    localStorage.removeItem('token');
+        <script>
+            // Check Auth and Load User Data
+            async function initDashboard() {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    console.log("No token found - redirecting to login");
                     window.location.href = '/login';
+                    return;
                 }
-            } catch (e) {
-                console.error("Auth check failed", e);
-            }
-        }
 
-        async function fetchDashboardStats(token) {
-            try {
-                const response = await fetch('/api/dashboard/stats', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+                try {
+                    // Fetch User Info
+                    const response = await fetch('/api/users/me', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
 
-                if (response.ok) {
-                    const stats = await response.json();
+                    if (response.ok) {
+                        const user = await response.json();
+                        document.getElementById('user-email-header').innerText = user.email;
+                        document.getElementById('plan-badge').innerText = user.plan + " Plan";
 
-                    // Update Stat Cards
-                    const statValues = document.querySelectorAll('.stat-value');
-                    if (statValues.length >= 2) {
-                        statValues[0].innerText = stats.missed_calls_saved;
-                        statValues[1].innerText = "$" + stats.est_revenue.toLocaleString();
-                        statValues[2].innerText = stats.engagement_rate;
-                    }
-
-                    // Update Recent Activity Table
-                    const activityTbody = document.querySelector("#dashboard-view tbody");
-                    if (activityTbody) {
-                        activityTbody.innerHTML = "";
-
-                        if (stats.recent_activity.length === 0) {
-                            activityTbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color: #94a3b8;'>No recent calls. Start a demo!</td></tr>";
-                            return;
+                        if (user.is_active) {
+                            const statusBadge = document.getElementById('status-badge');
+                            if (statusBadge) {
+                                statusBadge.innerText = "Active";
+                                statusBadge.className = "status-badge status-active";
+                            }
                         }
 
-                        stats.recent_activity.forEach(act => {
-                            const timeAgo = getTimeAgo(new Date(act.time));
-                            const row = `
+                        // Admin Check
+                        if (user.is_admin) {
+                            const adminLink = document.getElementById('admin-menu-item');
+                            if (adminLink) adminLink.style.display = 'flex';
+                        }
+
+                        // Fetch Call Logs
+                        fetchCallLogs(token);
+
+                        // Fetch Dashboard Stats
+                        fetchDashboardStats(token);
+
+                        // Fetch AI Config
+                        fetchAIConfig(token);
+
+                        // Initialize Chart
+                        renderChart();
+
+                    } else {
+                        localStorage.removeItem('token');
+                        window.location.href = '/login';
+                    }
+                } catch (e) {
+                    console.error("Auth check failed", e);
+                }
+            }
+
+            async function fetchDashboardStats(token) {
+                try {
+                    const response = await fetch('/api/dashboard/stats', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (response.ok) {
+                        const stats = await response.json();
+
+                        // Update Stat Cards
+                        const statValues = document.querySelectorAll('.stat-value');
+                        if (statValues.length >= 2) {
+                            statValues[0].innerText = stats.missed_calls_saved;
+                            statValues[1].innerText = "$" + stats.est_revenue.toLocaleString();
+                            statValues[2].innerText = stats.engagement_rate;
+                        }
+
+                        // Update Recent Activity Table
+                        const activityTbody = document.querySelector("#dashboard-view tbody");
+                        if (activityTbody) {
+                            activityTbody.innerHTML = "";
+
+                            if (stats.recent_activity.length === 0) {
+                                activityTbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color: #94a3b8;'>No recent calls. Start a demo!</td></tr>";
+                                return;
+                            }
+
+                            stats.recent_activity.forEach(act => {
+                                const timeAgo = getTimeAgo(new Date(act.time));
+                                const row = `
                                 <tr>
                                     <td>${act.phone}</td>
                                     <td>${timeAgo}</td>
@@ -683,76 +724,76 @@
                                     <td><span style="color: #34d399;">● ${act.status}</span></td>
                                 </tr>
                              `;
-                            activityTbody.insertAdjacentHTML('beforeend', row);
-                        });
+                                activityTbody.insertAdjacentHTML('beforeend', row);
+                            });
+                        }
                     }
+                } catch (e) {
+                    console.error("Failed to fetch dashboard stats", e);
                 }
-            } catch (e) {
-                console.error("Failed to fetch dashboard stats", e);
             }
-        }
 
 
 
-        function getTimeAgo(date) {
-            const seconds = Math.floor((new Date() - date) / 1000);
-            let interval = seconds / 31536000;
-            if (interval > 1) return Math.floor(interval) + " years ago";
-            interval = seconds / 2592000;
-            if (interval > 1) return Math.floor(interval) + " months ago";
-            interval = seconds / 86400;
-            if (interval > 1) return Math.floor(interval) + " days ago";
-            interval = seconds / 3600;
-            if (interval > 1) return Math.floor(interval) + " hours ago";
-            interval = seconds / 60;
-            if (interval > 1) return Math.floor(interval) + " mins ago";
-            return Math.floor(seconds) + " seconds ago";
-        }
+            function getTimeAgo(date) {
+                const seconds = Math.floor((new Date() - date) / 1000);
+                let interval = seconds / 31536000;
+                if (interval > 1) return Math.floor(interval) + " years ago";
+                interval = seconds / 2592000;
+                if (interval > 1) return Math.floor(interval) + " months ago";
+                interval = seconds / 86400;
+                if (interval > 1) return Math.floor(interval) + " days ago";
+                interval = seconds / 3600;
+                if (interval > 1) return Math.floor(interval) + " hours ago";
+                interval = seconds / 60;
+                if (interval > 1) return Math.floor(interval) + " mins ago";
+                return Math.floor(seconds) + " seconds ago";
+            }
 
-        async function fetchCallLogs(token) {
-            try {
-                const response = await fetch('/api/calls', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (response.ok) {
-                    const logs = await response.json();
-                    window.allCallLogs = logs; // Store globally for modal access
-                    renderCallLogs(logs);
+            async function fetchCallLogs(token) {
+                try {
+                    const response = await fetch('/api/calls', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (response.ok) {
+                        const logs = await response.json();
+                        window.allCallLogs = logs; // Store globally for modal access
+                        renderCallLogs(logs);
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch logs", e);
                 }
-            } catch (e) {
-                console.error("Failed to fetch logs", e);
-            }
-        }
-
-        function renderCallLogs(logs) {
-            const tbody = document.querySelector("#logs-view tbody");
-            if (!tbody) return;
-
-            tbody.innerHTML = "";
-
-            if (logs.length === 0) {
-                tbody.innerHTML = "<tr><td colspan='6' style='text-align:center;'>No calls recorded yet.</td></tr>";
-                return;
             }
 
-            logs.forEach(log => {
-                const date = new Date(log.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-                const statusColor = log.status === 'completed' ? 'status-active' : 'status-inactive';
-                const statusText = log.status === 'completed' ? 'Completed' : 'Failed';
+            function renderCallLogs(logs) {
+                const tbody = document.querySelector("#logs-view tbody");
+                if (!tbody) return;
 
-                // Format Duration
-                const duration = log.duration || 0;
-                const durationText = duration < 60 ? `${duration}s` : `${Math.floor(duration / 60)}m ${duration % 60}s`;
+                tbody.innerHTML = "";
 
-                // Embedded Audio Player
-                const recordingPlayer = log.recording_url
-                    ? `<audio controls src="${log.recording_url}" style="height: 30px; width: 220px; border-radius: 20px;"></audio>`
-                    : '<span style="color: #64748b;">No Audio</span>';
+                if (logs.length === 0) {
+                    tbody.innerHTML = "<tr><td colspan='6' style='text-align:center;'>No calls recorded yet.</td></tr>";
+                    return;
+                }
 
-                // View Summary Button (Safe ID-based open)
-                const summaryBtn = `<button onclick="openModal(${log.id})" style="background:none; border:none; color: #00c6ff; cursor: pointer; text-decoration: underline;">View Call Details</button>`;
+                logs.forEach(log => {
+                    const date = new Date(log.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+                    const statusColor = log.status === 'completed' ? 'status-active' : 'status-inactive';
+                    const statusText = log.status === 'completed' ? 'Completed' : 'Failed';
 
-                const row = `
+                    // Format Duration
+                    const duration = log.duration || 0;
+                    const durationText = duration < 60 ? `${duration}s` : `${Math.floor(duration / 60)}m ${duration % 60}s`;
+
+                    // Embedded Audio Player
+                    const recordingPlayer = log.recording_url
+                        ? `<audio controls src="${log.recording_url}" style="height: 30px; width: 220px; border-radius: 20px;"></audio>`
+                        : '<span style="color: #64748b;">No Audio</span>';
+
+                    // View Summary Button (Safe ID-based open)
+                    const summaryBtn = `<button onclick="openModal(${log.id})" style="background:none; border:none; color: #00c6ff; cursor: pointer; text-decoration: underline;">View Call Details</button>`;
+
+                    const row = `
                     <tr>
                         <td>#${log.id}</td>
                         <td>${log.phone_number}</td>
@@ -765,30 +806,30 @@
                         <td><span class="status-badge ${statusColor}">${statusText}</span></td>
                     </tr>
                 `;
-                tbody.insertAdjacentHTML('beforeend', row);
-            });
-        }
+                    tbody.insertAdjacentHTML('beforeend', row);
+                });
+            }
 
-        // Modal functions
-        function openModal(logId) {
-            const log = window.allCallLogs.find(l => l.id === logId);
-            if (!log) return;
+            // Modal functions
+            function openModal(logId) {
+                const log = window.allCallLogs.find(l => l.id === logId);
+                if (!log) return;
 
-            const summary = log.summary || 'No summary available.';
-            const transcript = log.transcript || 'No transcript available.';
+                const summary = log.summary || 'No summary available.';
+                const transcript = log.transcript || 'No transcript available.';
 
-            // Format Summary with "Graphics" (Emojis/Structure) if it's plain text
-            let formattedSummary = summary;
-            if (!summary.includes("<ul>") && !summary.includes("Topics:")) {
-                // Try to beautify plain text
-                formattedSummary = `
+                // Format Summary with "Graphics" (Emojis/Structure) if it's plain text
+                let formattedSummary = summary;
+                if (!summary.includes("<ul>") && !summary.includes("Topics:")) {
+                    // Try to beautify plain text
+                    formattedSummary = `
                     <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px;">
                         <p><strong>📊 Call Overview:</strong> ${summary}</p>
                     </div>
                  `;
-            }
+                }
 
-            const htmlContent = `
+                const htmlContent = `
                 <div style="margin-bottom: 20px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; margin-bottom:10px;">
                         <h4 style="margin:0; color: #94a3b8;">AI Summary & Insights</h4>
@@ -805,276 +846,322 @@
                 </div>
             `;
 
-            document.getElementById('modal-content').innerHTML = htmlContent;
-            document.getElementById('transcript-modal').style.display = 'block';
-            document.getElementById('modal-overlay').style.display = 'block';
-        }
-
-        function copyToClipboard(elementId) {
-            const text = document.getElementById(elementId).innerText;
-            navigator.clipboard.writeText(text).then(() => {
-                alert("Copied to clipboard!");
-            });
-        }
-
-        function downloadTranscript(logId) {
-            const log = window.allCallLogs.find(l => l.id === logId);
-            if (!log) return;
-
-            const content = `CALL SUMMARY:\n${log.summary}\n\nFULL TRANSCRIPT:\n${log.transcript}`;
-            const blob = new Blob([content], { type: 'text/plain' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `Call_Log_${logId}.txt`;
-            a.click();
-            window.URL.revokeObjectURL(url);
-        }
-
-        function closeModal() {
-            document.getElementById('transcript-modal').style.display = 'none';
-            document.getElementById('modal-overlay').style.display = 'none';
-        }
-
-        window.onload = initDashboard;
-
-        function showView(viewId) {
-            const views = document.querySelectorAll('.view-section');
-            views.forEach(view => view.style.display = 'none');
-
-            const selectedView = document.getElementById(viewId + '-view');
-            if (selectedView) selectedView.style.display = 'block';
-
-            const titles = {
-                'dashboard': 'Dashboard Overview',
-                'logs': 'Call Logs & Transcripts',
-                'billing': 'Billing & Payments',
-                'settings': 'AI Configuration'
-            };
-            const titleElem = document.getElementById('page-title');
-            if (titleElem) titleElem.innerText = titles[viewId] || 'Dashboard';
-
-            const menuItems = document.querySelectorAll('.menu-item');
-            menuItems.forEach(item => {
-                item.classList.remove('active');
-                if (item.getAttribute('onclick').includes(viewId)) {
-                    item.classList.add('active');
-                }
-            });
-        }
-        async function triggerDemoCall() {
-            const phone = document.getElementById('demoPhone').value;
-            const btn = document.getElementById('demoBtn');
-            const msg = document.getElementById('demoMsg');
-
-            if (!phone) {
-                alert("Please enter a phone number");
-                return;
+                document.getElementById('modal-content').innerHTML = htmlContent;
+                document.getElementById('transcript-modal').style.display = 'block';
+                document.getElementById('modal-overlay').style.display = 'block';
             }
 
-            btn.disabled = true;
-            btn.innerHTML = "<span>⏳</span> Connecting...";
-            msg.style.display = 'none';
-
-            try {
-                const formData = new FormData();
-                formData.append('phone', phone);
-
-                const token = localStorage.getItem('token');
-                const response = await fetch('/api/send-demo-call', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: formData
+            function copyToClipboard(elementId) {
+                const text = document.getElementById(elementId).innerText;
+                navigator.clipboard.writeText(text).then(() => {
+                    alert("Copied to clipboard!");
                 });
+            }
 
-                const data = await response.json();
+            function downloadTranscript(logId) {
+                const log = window.allCallLogs.find(l => l.id === logId);
+                if (!log) return;
 
-                if (response.ok) {
-                    msg.style.display = 'block';
-                    msg.style.color = '#34d399';
-                    msg.innerText = "Call initiated! Pickup your phone.";
-                    btn.innerHTML = "<span>✅</span> Call Sent";
-                } else {
-                    throw new Error(data.details || "Failed");
-                }
-            } catch (e) {
-                msg.style.display = 'block';
-                msg.style.color = '#ef4444';
-                msg.innerText = "Error: " + e.message;
-                btn.innerHTML = "<span>📞</span> Trigger Call";
-            } finally {
-                setTimeout(() => {
-                    if (btn.innerText.includes("Sent")) {
-                        btn.disabled = false;
-                        btn.innerHTML = "<span>📞</span> Trigger Call";
-                    } else {
-                        btn.disabled = false;
+                const content = `CALL SUMMARY:\n${log.summary}\n\nFULL TRANSCRIPT:\n${log.transcript}`;
+                const blob = new Blob([content], { type: 'text/plain' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Call_Log_${logId}.txt`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            }
+
+            function closeModal() {
+                document.getElementById('transcript-modal').style.display = 'none';
+                document.getElementById('modal-overlay').style.display = 'none';
+            }
+
+            window.onload = initDashboard;
+
+            function showView(viewId) {
+                const views = document.querySelectorAll('.view-section');
+                views.forEach(view => view.style.display = 'none');
+
+                const selectedView = document.getElementById(viewId + '-view');
+                if (selectedView) selectedView.style.display = 'block';
+
+                const titles = {
+                    'dashboard': 'Dashboard Overview',
+                    'logs': 'Call Logs & Transcripts',
+                    'billing': 'Billing & Payments',
+                    'settings': 'AI Configuration',
+                    'admin': 'Admin Panel'
+                };
+                const titleElem = document.getElementById('page-title');
+                if (titleElem) titleElem.innerText = titles[viewId] || 'Dashboard';
+
+                const menuItems = document.querySelectorAll('.menu-item');
+                menuItems.forEach(item => {
+                    item.classList.remove('active');
+                    if (item.getAttribute('onclick').includes(viewId)) {
+                        item.classList.add('active');
                     }
-                }, 5000);
+                });
             }
-        }
+            async function triggerDemoCall() {
+                const phone = document.getElementById('demoPhone').value;
+                const btn = document.getElementById('demoBtn');
+                const msg = document.getElementById('demoMsg');
 
-        function renderChart() {
-            if (typeof Chart === 'undefined') {
-                setTimeout(renderChart, 500); // Retry if CDN is slow
-                return;
-            }
+                if (!phone) {
+                    alert("Please enter a phone number");
+                    return;
+                }
 
-            const ctx = document.getElementById('weeklyChart');
-            if (!ctx) return;
+                btn.disabled = true;
+                btn.innerHTML = "<span>⏳</span> Connecting...";
+                msg.style.display = 'none';
 
-            // Check if chart instance exists
-            if (window.myChart instanceof Chart) {
-                window.myChart.destroy();
-            }
+                try {
+                    const formData = new FormData();
+                    formData.append('phone', phone);
 
-            Chart.defaults.color = '#94a3b8';
-            Chart.defaults.font.family = "'Outfit', sans-serif";
-
-            // Mock Data for MVP visualization
-            const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-            const data = {
-                labels: labels,
-                datasets: [{
-                    label: 'Missed Calls Handled',
-                    data: [12, 19, 3, 5, 12, 3, 9],
-                    borderColor: '#00c6ff',
-                    backgroundColor: 'rgba(0, 198, 255, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    fill: true,
-                    pointBackgroundColor: '#00c6ff'
-                }]
-            };
-
-            window.myChart = new Chart(ctx, {
-                type: 'line',
-                data: data,
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                            titleColor: '#fff',
-                            bodyColor: '#cbd5e1',
-                            borderColor: 'rgba(255,255,255,0.1)',
-                            borderWidth: 1,
-                            padding: 10,
-                            displayColors: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                            border: { display: false }
+                    const token = localStorage.getItem('token');
+                    const response = await fetch('/api/send-demo-call', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
                         },
-                        x: {
-                            grid: { display: false },
-                            border: { display: false }
+                        body: formData
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        msg.style.display = 'block';
+                        msg.style.color = '#34d399';
+                        msg.innerText = "Call initiated! Pickup your phone.";
+                        btn.innerHTML = "<span>✅</span> Call Sent";
+                    } else {
+                        throw new Error(data.details || "Failed");
+                    }
+                } catch (e) {
+                    msg.style.display = 'block';
+                    msg.style.color = '#ef4444';
+                    msg.innerText = "Error: " + e.message;
+                    btn.innerHTML = "<span>📞</span> Trigger Call";
+                } finally {
+                    setTimeout(() => {
+                        if (btn.innerText.includes("Sent")) {
+                            btn.disabled = false;
+                            btn.innerHTML = "<span>📞</span> Trigger Call";
+                        } else {
+                            btn.disabled = false;
+                        }
+                    }, 5000);
+                }
+            }
+
+            function renderChart() {
+                if (typeof Chart === 'undefined') {
+                    setTimeout(renderChart, 500); // Retry if CDN is slow
+                    return;
+                }
+
+                const ctx = document.getElementById('weeklyChart');
+                if (!ctx) return;
+
+                // Check if chart instance exists
+                if (window.myChart instanceof Chart) {
+                    window.myChart.destroy();
+                }
+
+                Chart.defaults.color = '#94a3b8';
+                Chart.defaults.font.family = "'Outfit', sans-serif";
+
+                // Mock Data for MVP visualization
+                const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                const data = {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Missed Calls Handled',
+                        data: [12, 19, 3, 5, 12, 3, 9],
+                        borderColor: '#00c6ff',
+                        backgroundColor: 'rgba(0, 198, 255, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#00c6ff'
+                    }]
+                };
+
+                window.myChart = new Chart(ctx, {
+                    type: 'line',
+                    data: data,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                                titleColor: '#fff',
+                                bodyColor: '#cbd5e1',
+                                borderColor: 'rgba(255,255,255,0.1)',
+                                borderWidth: 1,
+                                padding: 10,
+                                displayColors: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                                border: { display: false }
+                            },
+                            x: {
+                                grid: { display: false },
+                                border: { display: false }
+                            }
                         }
                     }
-                }
-            });
-        }
+                });
+            }
 
-        // Auto-Refresh (Polling)
-        let lastCallDataString = "";
+            // Auto-Refresh (Polling)
+            let lastCallDataString = "";
 
-        setInterval(() => {
-            const token = localStorage.getItem('token');
-            if (token) {
-                // Refresh Dashboard Stats (Recent Activity)
-                // We run this unconditionally as it updates the main overview
-                fetchDashboardStats(token);
+            setInterval(() => {
+                const token = localStorage.getItem('token');
+                if (token) {
+                    // Refresh Dashboard Stats (Recent Activity)
+                    // We run this unconditionally as it updates the main overview
+                    fetchDashboardStats(token);
 
-                // Refresh Full Logs (Smart Check to preserve Audio Player state if no change)
-                fetch('/api/calls', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                })
-                    .then(res => res.json())
-                    .then(logs => {
-                        window.allCallLogs = logs; // Sync global state for modal
-                        // Create a simple "hash" of valid data to detect changes
-                        // We allow 'duration' to update without re-render if it's the same
-                        // But if status changes (Initiated -> Completed), we MUST re-render
-                        const currentDataString = JSON.stringify(logs.map(l => l.id + l.status + (l.recording_url ? 'rec' : 'norec')));
-
-                        if (currentDataString !== lastCallDataString) {
-                            console.log("New call data detected, refreshing tables...");
-                            lastCallDataString = currentDataString;
-                            renderCallLogs(logs);
-                        }
+                    // Refresh Full Logs (Smart Check to preserve Audio Player state if no change)
+                    fetch('/api/calls', {
+                        headers: { 'Authorization': `Bearer ${token}` }
                     })
-                    .catch(e => console.error("Polling error", e));
-            }
-        }, 5000); // Check every 5 seconds
+                        .then(res => res.json())
+                        .then(logs => {
+                            window.allCallLogs = logs; // Sync global state for modal
+                            // Create a simple "hash" of valid data to detect changes
+                            // We allow 'duration' to update without re-render if it's the same
+                            // But if status changes (Initiated -> Completed), we MUST re-render
+                            const currentDataString = JSON.stringify(logs.map(l => l.id + l.status + (l.recording_url ? 'rec' : 'norec')));
 
-        async function fetchAIConfig(token) {
-            try {
-                const response = await fetch('/api/ai-config', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (response.ok) {
-                    const config = await response.json();
-                    document.getElementById('ai-business-name').value = config.business_name || '';
-                    document.getElementById('ai-greeting').value = config.greeting || '';
-                    document.getElementById('ai-persona').value = config.persona || 'friendly';
-                    document.getElementById('ai-owner-phone').value = config.owner_phone || '';
+                            if (currentDataString !== lastCallDataString) {
+                                console.log("New call data detected, refreshing tables...");
+                                lastCallDataString = currentDataString;
+                                renderCallLogs(logs);
+                            }
+                        })
+                        .catch(e => console.error("Polling error", e));
                 }
-            } catch (e) { console.error("Failed to fetch AI config", e); }
-        }
+            }, 5000); // Check every 5 seconds
 
-        async function updateAIConfig() {
-            const btn = document.getElementById('save-config-btn');
-            const msg = document.getElementById('config-msg');
-            const token = localStorage.getItem('token');
+            async function fetchAIConfig(token) {
+                try {
+                    const response = await fetch('/api/ai-config', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (response.ok) {
+                        const config = await response.json();
+                        document.getElementById('ai-business-name').value = config.business_name || '';
+                        document.getElementById('ai-greeting').value = config.greeting || '';
+                        document.getElementById('ai-persona').value = config.persona || 'friendly';
+                        document.getElementById('ai-owner-phone').value = config.owner_phone || '';
+                    }
+                } catch (e) { console.error("Failed to fetch AI config", e); }
+            }
 
-            btn.disabled = true;
-            btn.innerText = "Saving...";
-            msg.style.display = 'none';
+            async function updateAIConfig() {
+                const btn = document.getElementById('save-config-btn');
+                const msg = document.getElementById('config-msg');
+                const token = localStorage.getItem('token');
 
-            const payload = {
-                business_name: document.getElementById('ai-business-name').value,
-                greeting: document.getElementById('ai-greeting').value,
-                persona: document.getElementById('ai-persona').value,
-                owner_phone: document.getElementById('ai-owner-phone').value
-            };
+                btn.disabled = true;
+                btn.innerText = "Saving...";
+                msg.style.display = 'none';
 
-            try {
-                const response = await fetch('/api/ai-config', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(payload)
-                });
-                const result = await response.json();
+                const payload = {
+                    business_name: document.getElementById('ai-business-name').value,
+                    greeting: document.getElementById('ai-greeting').value,
+                    persona: document.getElementById('ai-persona').value,
+                    owner_phone: document.getElementById('ai-owner-phone').value
+                };
 
-                if (result.success) {
+                try {
+                    const response = await fetch('/api/ai-config', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        msg.style.display = 'block';
+                        msg.style.color = '#34d399';
+                        msg.innerText = result.message;
+                        btn.innerText = "Saved!";
+                    } else {
+                        throw new Error(result.error || "Failed");
+                    }
+                } catch (e) {
                     msg.style.display = 'block';
-                    msg.style.color = '#34d399';
-                    msg.innerText = result.message;
-                    btn.innerText = "Saved!";
-                } else {
-                    throw new Error(result.error || "Failed");
+                    msg.style.color = '#ef4444';
+                    msg.innerText = "Error: " + e.message;
+                    btn.innerText = "Save Changes";
+                } finally {
+                    setTimeout(() => { if (btn.innerText === "Saved!") btn.innerText = "Save Changes"; btn.disabled = false; }, 3000);
                 }
-            } catch (e) {
-                msg.style.display = 'block';
-                msg.style.color = '#ef4444';
-                msg.innerText = "Error: " + e.message;
-                btn.innerText = "Save Changes";
-            } finally {
-                setTimeout(() => { if (btn.innerText === "Saved!") btn.innerText = "Save Changes"; btn.disabled = false; }, 3000);
             }
-        }
-    </script>
-    <script src="/chatbot.js"></script>
+
+            async function loadAdminPanel() {
+                const token = localStorage.getItem('token');
+                const tbody = document.getElementById('admin-users-table');
+                if (!tbody) return;
+
+                tbody.innerHTML = "<tr><td colspan='7' style='text-align:center;'>Loading data...</td></tr>";
+
+                try {
+                    const response = await fetch('/api/admin/users', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (response.ok) {
+                        const users = await response.json();
+                        tbody.innerHTML = "";
+
+                        if (users.length === 0) {
+                            tbody.innerHTML = "<tr><td colspan='7' style='text-align:center;'>No users found.</td></tr>";
+                            return;
+                        }
+
+                        users.forEach(u => {
+                            const row = `
+                            <tr>
+                                <td>#${u.id}</td>
+                                <td>${u.email} ${u.is_admin ? ' (Admin)' : ''}</td>
+                                <td>${u.business_name}</td>
+                                <td>${u.plan}</td>
+                                <td>${u.total_calls} Calls</td>
+                                <td style="font-family:monospace; color:${u.vapi_assistant_id !== 'Not Created' ? '#34d399' : '#94a3b8'}">${u.vapi_assistant_id}</td>
+                                <td><span class="status-badge ${u.status === 'Active' ? 'status-active' : 'status-inactive'}">${u.status}</span></td>
+                            </tr>
+                        `;
+                            tbody.insertAdjacentHTML('beforeend', row);
+                        });
+                    } else {
+                        tbody.innerHTML = "<tr><td colspan='7' style='text-align:center; color:#ef4444;'>Failed to load users. Permissions denied?</td></tr>";
+                    }
+                } catch (e) {
+                    console.error("Admin fetch error", e);
+                    tbody.innerHTML = "<tr><td colspan='7' style='text-align:center; color:#ef4444;'>Error loading data.</td></tr>";
+                }
+            }
+
+        </script>
+        <script src="/chatbot.js"></script>
 </body>
 
 </html>

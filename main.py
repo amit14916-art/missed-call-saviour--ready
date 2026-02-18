@@ -84,6 +84,7 @@ class User(Base):
     hashed_password = Column(String)
     plan = Column(String, default="Free")
     is_active = Column(Boolean, default=False)
+    is_admin = Column(Boolean, default=False) # New Admin Flag
     registration_date = Column(DateTime, default=datetime.utcnow) 
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
@@ -135,6 +136,16 @@ async def startup_event():
             print("✅ Auto-migration successful: 'transcript' column added!", flush=True)
         else:
             print("✅ DB Check: 'transcript' column exists.", flush=True)
+            
+        # Auto-Migration: Add 'is_admin' to users if missing
+        columns_users = [col['name'] for col in inspector.get_columns('users')]
+        if 'is_admin' not in columns_users:
+            print("⚠️ 'is_admin' column missing in 'users'. Attempting auto-migration...", flush=True)
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE"))
+                conn.execute(text("UPDATE users SET is_admin = TRUE WHERE id = 1")) # Make first user Admin
+                conn.commit()
+            print("✅ Auto-migration successful: 'is_admin' column added & User 1 promoted!", flush=True)
     except Exception as e:
         print(f"❌ Auto-migration failed: {e}", flush=True)
 
@@ -723,6 +734,7 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
         "email": current_user.email,
         "plan": current_user.plan,
         "is_active": current_user.is_active,
+        "is_admin": current_user.is_admin,
         "stripe_customer_id": current_user.stripe_customer_id,
         "registration_date": current_user.registration_date
     }
@@ -1043,6 +1055,35 @@ def debug_latest_call(db: Session = Depends(get_db)):
         }
     except Exception as e:
         return {"error": str(e)}
+
+# --- ADMIN ENDPOINTS ---
+@app.get("/api/admin/users")
+async def get_all_users(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Security Check: Must be Admin (or User ID 1 for recovery)
+    if not current_user.is_admin and current_user.id != 1:
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    
+    # Fetch all users with their configurations
+    users_data = []
+    all_users = db.query(User).all()
+    
+    for u in all_users:
+        config = db.query(AIConfig).filter(AIConfig.user_email == u.email).first()
+        call_count = db.query(CallLog).filter(CallLog.user_email == u.email).count()
+        
+        users_data.append({
+            "id": u.id,
+            "email": u.email,
+            "plan": u.plan,
+            "status": "Active" if u.is_active else "Inactive",
+            "is_admin": u.is_admin,
+            "business_name": config.business_name if config else "N/A",
+            "vapi_assistant_id": config.vapi_assistant_id if config else "Not Created",
+            "total_calls": call_count,
+            "joined_at": u.registration_date.strftime("%Y-%m-%d") if u.registration_date else "N/A"
+        })
+        
+    return users_data
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
