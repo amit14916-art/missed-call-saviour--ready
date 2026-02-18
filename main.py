@@ -1081,5 +1081,22 @@ async def get_all_users(current_user: User = Depends(get_current_user), db: Sess
         
     return users_data
 
+@app.delete("/api/admin/users/{user_id}")
+async def delete_user(user_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own admin account")
+    
+    # Cascade delete logs? Or keep them? For now simple user delete.
+    db.delete(user)
+    db.commit()
+    return {"message": "User deleted successfully"}
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
