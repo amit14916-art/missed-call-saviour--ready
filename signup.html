@@ -241,6 +241,11 @@
             </div>
 
             <div class="input-group">
+                <label>Phone Number</label>
+                <input type="tel" id="phone" placeholder="+1 (555) 000-0000">
+            </div>
+
+            <div class="input-group">
                 <label>Password</label>
                 <input type="password" id="password" required placeholder="Create a strong password">
             </div>
@@ -270,6 +275,7 @@
         async function handleSignup(e) {
             e.preventDefault();
             const email = document.getElementById('email').value;
+            const phone = document.getElementById('phone').value;
             const password = document.getElementById('password').value;
             const confirm = document.getElementById('confirmPassword').value;
             const btn = document.getElementById('signupBtn');
@@ -293,6 +299,7 @@
                 const formData = new FormData();
                 formData.append('email', email);
                 formData.append('password', password);
+                if (phone) formData.append('phone', phone);
 
                 const response = await fetch('/api/signup', {
                     method: 'POST',

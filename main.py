@@ -85,6 +85,7 @@ class User(Base):
     plan = Column(String, default="Free")
     is_active = Column(Boolean, default=False)
     is_admin = Column(Boolean, default=False) # New Admin Flag
+    phone_number = Column(String, nullable=True) # Added for user contact
     registration_date = Column(DateTime, default=datetime.utcnow) 
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
@@ -146,6 +147,31 @@ async def startup_event():
                 conn.execute(text("UPDATE users SET is_admin = TRUE WHERE id = 1")) # Make first user Admin
                 conn.commit()
             print("✅ Auto-migration successful: 'is_admin' column added & User 1 promoted!", flush=True)
+
+        if 'phone_number' not in columns_users:
+            print("⚠️ 'phone_number' column missing in 'users'. Attempting auto-migration...", flush=True)
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN phone_number VARCHAR(20)"))
+                conn.commit()
+            print("✅ Auto-migration successful: 'phone_number' column added!", flush=True)
+
+        # AI Config Migrations (Merged from secondary startup event)
+        if inspector.has_table("ai_configs"):
+             columns_ai = [col['name'] for col in inspector.get_columns("ai_configs")]
+             with engine.connect() as conn:
+                 if "persona" not in columns_ai:
+                     print("Migrating: Adding persona to ai_configs...")
+                     conn.execute(text("ALTER TABLE ai_configs ADD COLUMN persona VARCHAR(50) DEFAULT 'friendly'"))
+                     conn.commit()
+                 if "owner_phone" not in columns_ai:
+                     print("Migrating: Adding owner_phone to ai_configs...")
+                     conn.execute(text("ALTER TABLE ai_configs ADD COLUMN owner_phone VARCHAR(50)"))
+                     conn.commit()
+                 if "vapi_assistant_id" not in columns_ai:
+                     print("Migrating: Adding vapi_assistant_id to ai_configs...")
+                     conn.execute(text("ALTER TABLE ai_configs ADD COLUMN vapi_assistant_id VARCHAR(100)"))
+                     conn.commit()
+
     except Exception as e:
         print(f"❌ Auto-migration failed: {e}", flush=True)
 
@@ -388,7 +414,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     return {"access_token": access_token, "token_type": "bearer"}
 
 @app.post("/api/signup")
-async def signup(background_tasks: BackgroundTasks, email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+async def signup(background_tasks: BackgroundTasks, email: str = Form(...), password: str = Form(...), phone: str = Form(None), db: Session = Depends(get_db)):
     try:
         user = db.query(User).filter(User.email == email).first()
         if user:
@@ -398,6 +424,7 @@ async def signup(background_tasks: BackgroundTasks, email: str = Form(...), pass
         new_user = User(
             email=email, 
             hashed_password=hashed_password,
+            phone_number=phone,
             registration_date=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
@@ -974,48 +1001,7 @@ async def verify_razorpay_payment(background_tasks: BackgroundTasks, razorpay_pa
     except Exception as e:
          return JSONResponse(status_code=500, content={"error": str(e)})
 
-@app.on_event("startup")
-async def startup_event():
-    """
-    Ensure the DB schema is up to date on startup.
-    Compatible with both SQLite and PostgreSQL.
-    """
-    try:
-        from sqlalchemy import text, inspect
-        # ensure tables exist
-        Base.metadata.create_all(bind=engine)
 
-        # Use a fresh connection for migration check
-        with engine.connect() as connection:
-            # Check if ai_configs has persona column
-            try:
-                inspector = inspect(engine)
-                if inspector.has_table("ai_configs"):
-                    columns = [col['name'] for col in inspector.get_columns("ai_configs")]
-                    
-                    if "persona" not in columns:
-                        print("Migrating DB: Adding persona column to ai_configs...")
-                        # Use generic SQL standard syntax
-                        connection.execute(text("ALTER TABLE ai_configs ADD COLUMN persona VARCHAR(50) DEFAULT 'friendly'"))
-                        connection.commit()
-                        print("Migration successful: added 'persona' column.")
-
-                    if "owner_phone" not in columns:
-                        print("Migrating DB: Adding owner_phone column to ai_configs...")
-                        connection.execute(text("ALTER TABLE ai_configs ADD COLUMN owner_phone VARCHAR(50)"))
-                        connection.commit()
-                        print("Migration successful: added 'owner_phone' column.")
-
-                    if "vapi_assistant_id" not in columns:
-                         print("Migrating DB: Adding vapi_assistant_id column to ai_configs...")
-                         connection.execute(text("ALTER TABLE ai_configs ADD COLUMN vapi_assistant_id VARCHAR(100)"))
-                         connection.commit()
-                         print("Migration successful: added 'vapi_assistant_id' column.")
-            except Exception as e:
-                print(f"Migration step failed: {e}")
-                
-    except Exception as e:
-        print(f"Startup check failed: {e}")
 
 
 @app.get("/api/debug-env")
