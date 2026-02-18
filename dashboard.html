@@ -1120,7 +1120,6 @@
             async function updateAIConfig() {
                 const btn = document.getElementById('save-config-btn');
                 const msg = document.getElementById('config-msg');
-                const activationPanel = document.getElementById('activation-panel');
                 const token = localStorage.getItem('token');
 
                 btn.disabled = true;
@@ -1152,24 +1151,6 @@
                         msg.style.color = '#34d399';
                         msg.innerText = result.message;
                         btn.innerText = "Saved!";
-
-                        // Show Activation Panel
-                        activationPanel.style.display = 'block';
-
-                        // Construct Webhook URL
-                        // Attempt to get email from header (loaded by initDashboard)
-                        let userEmail = document.getElementById('user-email-header').innerText;
-                        if (!userEmail || userEmail === "Loading...") {
-                            // Fallback or try to decode token simple way (if needed), or just ask user to refresh
-                            userEmail = "YOUR_EMAIL";
-                        }
-
-                        const webhookUrl = `https://missed-call-saviour-ready-production.up.railway.app/api/hooks/android-trigger?email=${userEmail}&phone=[call_number]`;
-                        document.getElementById('webhook-url-box').value = webhookUrl;
-
-                        // Scroll to panel
-                        activationPanel.scrollIntoView({ behavior: 'smooth' });
-
                     } else {
                         // Use 'detail' from backend if available, or 'error', or generic text
                         throw new Error(result.detail || result.error || "Failed to update settings.");
