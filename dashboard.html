@@ -1160,7 +1160,7 @@
                                     <td>${agentStatus}</td>
                                     <td>${u.joined_at}</td>
                                     <td>
-                                        ${u.email === document.getElementById('user-email-header').innerText ? '' : `<button onclick="deleteUser(${u.id})" style="background:rgba(239, 68, 68, 0.2); border:1px solid rgba(239, 68, 68, 0.5); color:#ef4444; border-radius:6px; cursor:pointer;">🗑️</button>`}
+                                        ${u.id === 1 ? '<span style="color:#64748b;">🔒</span>' : `<button onclick="deleteUser(${u.id})" style="background:rgba(239, 68, 68, 0.2); border:1px solid rgba(239, 68, 68, 0.5); color:#ef4444; border-radius:6px; cursor:pointer;">🗑️</button>`}
                                     </td>
                                     </td >
                                 </tr >
