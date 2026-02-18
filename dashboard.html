@@ -307,6 +307,9 @@
                     <div class="menu-item" onclick="showView('billing')">
                         <span>💳</span> Billing
                     </div>
+                    <div class="menu-item" onclick="showView('settings')">
+                        <span>⚙️</span> Settings
+                    </div>
                 </div>
             </div>
 
@@ -528,6 +531,49 @@
                 </div>
             </div>
 
+            <!-- SETTINGS VIEW -->
+            <div id="settings-view" class="view-section" style="display: none;">
+                <div class="glass-panel" style="padding: 30px; max-width: 800px;">
+                    <h3 style="margin-top:0; border-bottom:1px solid var(--glass-border); padding-bottom:16px;">AI
+                        Configuration</h3>
+
+                    <div class="form-group">
+                        <label>Business Name</label>
+                        <input type="text" id="ai-business-name" placeholder="e.g. Rahul's Gym">
+                    </div>
+
+                    <div class="form-group">
+                        <label>AI Greeting Message</label>
+                        <textarea id="ai-greeting" rows="2"
+                            placeholder="Namaste! Main Rahul's Gym se bol raha hu..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>AI Persona (Tone)</label>
+                        <select id="ai-persona"
+                            style="width: 100%; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--glass-border); padding: 12px 16px; border-radius: 12px; color: white;">
+                            <option value="friendly">Friendly (Hinglish)</option>
+                            <option value="professional">Professional (Formal)</option>
+                            <option value="urgent">High Energy (Sales)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group"
+                        style="background: rgba(255, 255, 255, 0.05); padding: 16px; border-radius: 12px;">
+                        <label style="color: #34d399;">Your Real Mobile Number (For Callbacks/Notifications)</label>
+                        <input type="text" id="ai-owner-phone" placeholder="+91 98765 43210">
+                        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px;">
+                            We will use this to forward urgent leads or send you SMS alerts.
+                        </p>
+                    </div>
+
+                    <div style="text-align: right; margin-top: 30px;">
+                        <button class="btn" onclick="updateAIConfig()" id="save-config-btn">Save Changes</button>
+                        <p id="config-msg" style="margin-top: 10px; font-size: 0.9rem; display: none;"></p>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -582,6 +628,9 @@
 
                     // Fetch Dashboard Stats
                     fetchDashboardStats(token);
+
+                    // Fetch AI Config
+                    fetchAIConfig(token);
 
 
 
@@ -757,8 +806,8 @@
             const titles = {
                 'dashboard': 'Dashboard Overview',
                 'logs': 'Call Logs & Transcripts',
-
-                'billing': 'Billing & Payments'
+                'billing': 'Billing & Payments',
+                'settings': 'AI Configuration'
             };
             const titleElem = document.getElementById('page-title');
             if (titleElem) titleElem.innerText = titles[viewId] || 'Dashboard';
@@ -921,6 +970,66 @@
                     .catch(e => console.error("Polling error", e));
             }
         }, 5000); // Check every 5 seconds
+
+        async function fetchAIConfig(token) {
+            try {
+                const response = await fetch('/api/ai-config', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const config = await response.json();
+                    document.getElementById('ai-business-name').value = config.business_name || '';
+                    document.getElementById('ai-greeting').value = config.greeting || '';
+                    document.getElementById('ai-persona').value = config.persona || 'friendly';
+                    document.getElementById('ai-owner-phone').value = config.owner_phone || '';
+                }
+            } catch (e) { console.error("Failed to fetch AI config", e); }
+        }
+
+        async function updateAIConfig() {
+            const btn = document.getElementById('save-config-btn');
+            const msg = document.getElementById('config-msg');
+            const token = localStorage.getItem('token');
+
+            btn.disabled = true;
+            btn.innerText = "Saving...";
+            msg.style.display = 'none';
+
+            const payload = {
+                business_name: document.getElementById('ai-business-name').value,
+                greeting: document.getElementById('ai-greeting').value,
+                persona: document.getElementById('ai-persona').value,
+                owner_phone: document.getElementById('ai-owner-phone').value
+            };
+
+            try {
+                const response = await fetch('/api/ai-config', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    msg.style.display = 'block';
+                    msg.style.color = '#34d399';
+                    msg.innerText = result.message;
+                    btn.innerText = "Saved!";
+                } else {
+                    throw new Error(result.error || "Failed");
+                }
+            } catch (e) {
+                msg.style.display = 'block';
+                msg.style.color = '#ef4444';
+                msg.innerText = "Error: " + e.message;
+                btn.innerText = "Save Changes";
+            } finally {
+                setTimeout(() => { if (btn.innerText === "Saved!") btn.innerText = "Save Changes"; btn.disabled = false; }, 3000);
+            }
+        }
     </script>
     <script src="/chatbot.js"></script>
 </body>

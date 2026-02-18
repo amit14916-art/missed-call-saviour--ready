@@ -246,22 +246,31 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None):
     # We DO NOT override 'model' or 'messages' anymore, so Vapi Dashboard settings are used.
     # Inject Smart System Prompt for the Demo
     system_prompt = """
-    Role: You are the AI Sales Representative for 'Missed Call Saviour'.
-    Product: 'Missed Call Saviour' is a SaaS that automates missed call handling for businesses using AI Voice Agents.
+    Role: You are the Senior AI Sales Representative for 'Missed Call Saviour'.
     
-    Key Features:
-    - Answers every missed call 24/7.
-    - Speaks natural Hinglish (Hindi + English).
-    - Sends instant WhatsApp/SMS follow-ups.
-    - Provides a real-time dashboard for business owners.
+    Product: 'Missed Call Saviour' is an AI tool that answers calls when business owners are busy. 
+    
+    CORE VALUE PROPOSITION (How it makes money):
+    1. "Every missed call is a lost customer." If a customer calls and you don't pick up, they call your competitor.
+    2. We answer INSTANTLY, 24/7. We take the booking or query.
+    3. Even one saved customer per month pays for the entire subscription.
+    
+    INTEGRATION PROCESS (How it works):
+    1. Sign up and get a dedicated AI Number.
+    2. On your personal phone, enable "Conditional Call Forwarding" (e.g., *67* on most carriers).
+    3. Now, whenever you miss a call or decline it, it automatically forwards to our AI Agent.
     
     Pricing Plans:
-    1. Starter: $10/month (Basic features, 100 calls).
-    2. Growth: $50/month (Advanced analytics, 500 calls).
-    3. Pro: $100/month (Unlimited calls, Custom AI personas).
+    1. Starter: $10/month (Solo founders, 100 calls).
+    2. Growth: $50/month (Small teams, 500 calls + CRM sync).
+    3. Pro: $100/month (Agencies, Unlimited calls, Custom Voice Cloning).
     
-    Goal: Explain the value effectively. Be professional yet friendly. Answer questions about pricing and features confidently.
-    Language: Speak in natural mixed English and Hindi (Hinglish).
+    Goal:
+    - Convince the user that missing calls = losing money.
+    - Explain that setup takes less than 2 minutes (just call forwarding).
+    - Be confident, professional, and persuasive.
+    
+    Language: Speak in natural mixed English and Hindi (Hinglish). Use terms like "Business badhega", "Customer khush rahega".
     """
 
     payload["assistant"] = {
@@ -731,7 +740,8 @@ class AIConfig(Base):
     user_email = Column(String, index=True) # Linking by email for MVP simplicity
     business_name = Column(String, default="My Business")
     greeting = Column(String, default="Namaste! Main kaise help kar sakta hoon?")
-    persona = Column(String, default="friendly") # New Persona Field
+    persona = Column(String, default="friendly")
+    owner_phone = Column(String, nullable=True) # New: Owner's real mobile number # New Persona Field
 
 # Table creation moved to startup_event
 
@@ -749,7 +759,8 @@ async def get_ai_config(current_user: User = Depends(get_current_user), db: Sess
     return {
         "business_name": config.business_name,
         "greeting": config.greeting,
-        "persona": config.persona if hasattr(config, "persona") else "friendly"
+        "persona": config.persona if hasattr(config, "persona") else "friendly",
+        "owner_phone": config.owner_phone if hasattr(config, "owner_phone") else ""
     }
 
 @app.post("/api/ai-config")
@@ -764,15 +775,17 @@ async def update_ai_config(
         business_name = data.get("business_name")
         greeting = data.get("greeting")
         persona = data.get("persona", "friendly")
+        owner_phone = data.get("owner_phone")
         
         config = db.query(AIConfig).filter(AIConfig.user_email == current_user.email).first()
         if not config:
-            config = AIConfig(user_email=current_user.email, business_name=business_name, greeting=greeting, persona=persona)
+            config = AIConfig(user_email=current_user.email, business_name=business_name, greeting=greeting, persona=persona, owner_phone=owner_phone)
             db.add(config)
         else:
             config.business_name = business_name
             config.greeting = greeting
             config.persona = persona
+            config.owner_phone = owner_phone
         db.commit()
     except Exception as e:
         print(f"DB Update Error: {e}")
@@ -907,7 +920,13 @@ async def startup_event():
                         # Use generic SQL standard syntax
                         connection.execute(text("ALTER TABLE ai_configs ADD COLUMN persona VARCHAR(50) DEFAULT 'friendly'"))
                         connection.commit()
-                        print("Migration successful.")
+                        print("Migration successful: added 'persona' column.")
+
+                    if "owner_phone" not in columns:
+                        print("Migrating DB: Adding owner_phone column to ai_configs...")
+                        connection.execute(text("ALTER TABLE ai_configs ADD COLUMN owner_phone VARCHAR(50)"))
+                        connection.commit()
+                        print("Migration successful: added 'owner_phone' column.")
             except Exception as e:
                 print(f"Migration step failed: {e}")
                 
