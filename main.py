@@ -597,6 +597,55 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                  email_body = f"<h1>New Call</h1><p>Duration: {duration}s</p><p>{summary}</p><p><a href='{recording_url}'>Recording</a></p>"
                  background_tasks.add_task(send_email_background, "New Call Summary", admin_email, email_body)
 
+        elif message_type == "status-update" and data.get("status") == "ended":
+             # Fallback logic for when End-of-Call report is missing/delayed
+             print("⚠️ Received status-update: ended. Attempting to mark as completed.", flush=True)
+             
+             # Extract sparse details
+             customer_number = "Unknown"
+             customer_data = data.get("customer", {})
+             if customer_data: 
+                customer_number = customer_data.get("number")
+             
+             if not customer_number:
+                 customer_number = data.get("call", {}).get("customer", {}).get("number", "Unknown")
+
+             duration = data.get("durationSeconds", 0)
+             recording_url = data.get("recordingUrl")
+             summary = "Call ended (Summary pending...)"
+
+             # Database Logic (Simplified Merge)
+             db = SessionLocal()
+             try:
+                 existing_call = None
+                 if customer_number != "Unknown":
+                     existing_call = db.query(CallLog).filter(
+                         CallLog.phone_number == customer_number,
+                         CallLog.status == "initiated"
+                     ).order_by(CallLog.id.desc()).first()
+                 
+                 if not existing_call:
+                     existing_call = db.query(CallLog).filter(
+                         CallLog.status == "initiated"
+                     ).order_by(CallLog.id.desc()).first()
+
+                 if existing_call:
+                     existing_call.status = "completed"
+                     if duration: existing_call.duration = int(duration)
+                     if recording_url: existing_call.recording_url = recording_url
+                     # Only overwrite summary if it's currently default/empty
+                     if not existing_call.summary or "Initiated" in existing_call.summary:
+                         existing_call.summary = summary
+                     
+                     db.commit()
+                     print("Call Marked Completed via status-update!", flush=True)
+                 else:
+                     print("No initiated call to complete via status-update.", flush=True)
+             except Exception as e:
+                 print(f"Error in status-update handler: {e}", flush=True)
+             finally:
+                 db.close()
+
         return {"status": "ok"}
     except Exception as e:
         print(f"Error processing Vapi webhook: {e}")
