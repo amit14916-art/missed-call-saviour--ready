@@ -835,20 +835,24 @@ async def update_ai_config(
         return JSONResponse(status_code=500, content={"error": f"Database Error: {str(e)}"})
 
     # 2. Update Vapi Assistant via API
-    # 2. Update Vapi Assistant via API
-    vapi_private_key = VAPI_PRIVATE_KEY
-    vapi_assistant_id = VAPI_ASSISTANT_ID
+    try:
+        vapi_private_key = VAPI_PRIVATE_KEY
+        if not vapi_private_key:
+             print("Vapi environment variables missing.", flush=True)
+             return {"success": True, "message": "Settings saved to DB (Vapi Not Configured)."}
+
+        # vapi_assistant_id is no longer global, we use config.vapi_assistant_id
 
         vapi_url = "https://api.vapi.ai/assistant"
         method = "POST"
         
         # If User already has an Assistant, UPDATE it (PATCH). If not, CREATE one (POST).
         if config.vapi_assistant_id:
-             vapi_url = f"https://api.vapi.ai/assistant/{config.vapi_assistant_id}"
-             method = "PATCH"
-             print(f"Updating Existing Assistant: {config.vapi_assistant_id}")
+                vapi_url = f"https://api.vapi.ai/assistant/{config.vapi_assistant_id}"
+                method = "PATCH"
+                print(f"Updating Existing Assistant: {config.vapi_assistant_id}")
         else:
-             print("Creating NEW Vapi Assistant for User...")
+                print("Creating NEW Vapi Assistant for User...")
 
         headers = {
             "Authorization": f"Bearer {vapi_private_key}",
