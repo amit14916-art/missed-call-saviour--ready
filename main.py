@@ -115,72 +115,7 @@ class CallLog(Base):
 
 # ... (rest of code)
 
-@app.post("/api/vapi/webhook")
-async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
-    try:
-        payload = await request.json()
-        message_type = payload.get("message", {}).get("type") or payload.get("type")
-        print(f"Received Vapi Event: {message_type}")
-
-        if message_type == "function-call":
-            # ... (function call logic same as before) ...
-            function_name = payload.get("functionCall", {}).get("name")
-            parameters = payload.get("functionCall", {}).get("parameters", {})
-            if function_name == "book_appointment":
-                 return JSONResponse(content={"result": "Appointment booked successfully for " + parameters.get("time", "tomorrow")})
-            elif function_name == "send_sms":
-                 print(f"Vapi requested SMS to {parameters.get('phone')}: {parameters.get('message')}")
-                 return JSONResponse(content={"result": "SMS logged"})
-
-        elif message_type == "end-of-call-report":
-             # Extract Data
-             analysis = payload.get("analysis", {})
-             summary = analysis.get("summary", "No summary provided.")
-             recording_url = payload.get("recordingUrl")
-             
-             # Extract Duration (Vapi sends 'durationSeconds' or similar in top level or analysis)
-             duration = payload.get("durationSeconds", 0)
-             if not duration:
-                 duration = payload.get("endedReason", {}).get("durationSeconds", 0) # sometimes here
-
-             # Robust extraction of phone number
-             customer_data = payload.get("customer", {})
-             customer_number = customer_data.get("number")
-             
-             if not customer_number:
-                 customer_number = payload.get("call", {}).get("customer", {}).get("number")
-             
-             if not customer_number:
-                  customer_number = "Unknown"
-
-             # Save to DB
-             db = SessionLocal()
-             try:
-                 new_call = CallLog(
-                     phone_number=customer_number,
-                     call_type="inbound/outbound", 
-                     status="completed",
-                     summary=summary,
-                     recording_url=recording_url,
-                     duration=int(duration) if duration else 0
-                 )
-                 db.add(new_call)
-                 db.commit()
-             except Exception as db_e:
-                 print(f"Failed to save call log: {db_e}")
-             finally:
-                 db.close()
-
-             admin_email = os.getenv("MAIL_USERNAME")
-             if admin_email:
-                 email_body = f"<h1>New Call</h1><p>Duration: {duration}s</p><p>{summary}</p><p><a href='{recording_url}'>Recording</a></p>"
-                 background_tasks.add_task(send_email_background, "New Call Summary", admin_email, email_body)
-
-        return JSONResponse(content={"status": "ok"})
-        
-    except Exception as e:
-        print(f"Error processing Vapi webhook: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+# Duplicate webhook handler removed. Using the robust one defined later.
 
 # Startup Event for Migrations
 @app.on_event("startup")
