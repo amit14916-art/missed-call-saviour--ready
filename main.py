@@ -504,6 +504,7 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                  analysis = data.get("call", {}).get("analysis", {})
              
              summary = analysis.get("summary") or "No summary provided."
+
              print(f"📝 SUMMARY EXTRACTED: {summary}", flush=True)
              
              recording_url = data.get("recordingUrl")
@@ -522,6 +523,22 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                  transcript = data.get("call", {}).get("transcript")
              
              transcript = transcript or "Transcript not provided."
+
+             # Intelligent Fallback Summary (Runs if Vapi failed but Transcript exists)
+             if (not summary or summary == "No summary provided.") and transcript and transcript != "Transcript not provided.":
+                 keywords = []
+                 text_lower = transcript.lower()
+                 if "price" in text_lower or "cost" in text_lower or "rate" in text_lower: keywords.append("Pricing")
+                 if "appointment" in text_lower or "book" in text_lower or "schedule" in text_lower: keywords.append("Appointment")
+                 if "urgent" in text_lower or "emergency" in text_lower: keywords.append("Urgent")
+                 if "refund" in text_lower: keywords.append("Refund")
+                 
+                 validation_prefix = "[Auto-Generated] "
+                 if keywords:
+                     summary = f"{validation_prefix}Topics: {', '.join(keywords)}"
+                 else:
+                     # Preview first 80 chars
+                     summary = f"{validation_prefix}{transcript[:80]}..."
 
              # Phone Extraction
              customer_number = None
