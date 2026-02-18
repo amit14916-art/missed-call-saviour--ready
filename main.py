@@ -893,13 +893,12 @@ async def update_ai_config(
         # Define Webhook URL (Production)
         webhook_url = "https://missed-call-saviour-ready-production.up.railway.app/api/vapi/webhook"
 
-        # vapi_assistant_id is no longer global, we use config.vapi_assistant_id
-
         vapi_url = "https://api.vapi.ai/assistant"
         method = "POST"
         
         # If User already has an Assistant, UPDATE it (PATCH). If not, CREATE one (POST).
-        if config.vapi_assistant_id:
+        # Check against "Not Created" string just in case legacy data exists
+        if config.vapi_assistant_id and config.vapi_assistant_id != "Not Created":
                 vapi_url = f"https://api.vapi.ai/assistant/{config.vapi_assistant_id}"
                 method = "PATCH"
                 print(f"Updating Existing Assistant: {config.vapi_assistant_id}")
@@ -928,14 +927,7 @@ async def update_ai_config(
         {tone_instruction}
         Task: 
         1. Start by welcoming them with: "{greeting}"
-        2. Understand their query (Appointment, Price, or General Info).
-        3. Explain details clearly in Hinglish.
-        4. Always ask a follow-up question to keep the chat alive.
-        
-        Guardrails:
-        - If they speak English, reply in English.
-        - If they speak Hindi, reply in Hindi/Hinglish.
-        - Never end the call abruptly.
+        2. Always be polite.
         """
         
         payload = {
@@ -947,9 +939,7 @@ async def update_ai_config(
                     {"role": "system", "content": updated_prompt}
                 ]
             },
-            "serverUrl": webhook_url, # Ensure Webhook is linked
-            "analysisPlan": { "summaryPlan": { "enabled": True } },
-            "artifactPlan": { "recordingEnabled": True, "transcriptPlan": { "enabled": True } }
+            "serverUrl": webhook_url
         }
         
         async with httpx.AsyncClient() as client:
@@ -960,7 +950,8 @@ async def update_ai_config(
             
             if response.status_code not in [200, 201]:
                 print(f"Vapi Error: {response.text}")
-                return JSONResponse(status_code=500, content={"error": f"Vapi Error: {response.text}"})
+                # Return 'detail' so frontend can display the actual error message
+                return JSONResponse(status_code=400, content={"detail": f"Vapi Error: {response.text}"})
             
             # If we created a new assistant, save the ID
             if method == "POST":
@@ -973,7 +964,7 @@ async def update_ai_config(
 
     except Exception as e:
         print(f"Vapi Config Update Exception: {e}")
-        return JSONResponse(status_code=500, content={"error": f"Vapi Client Error: {str(e)}"})
+        return JSONResponse(status_code=500, content={"detail": f"Vapi Client Error: {str(e)}"})
 
 # Razorpay Routes
 @app.post("/api/razorpay/create-order")
