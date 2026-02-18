@@ -571,6 +571,44 @@
                         </p>
                     </div>
 
+                    <!-- Activation Panel (Hidden by default) -->
+                    <div id="activation-panel"
+                        style="display: none; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); padding: 20px; border-radius: 12px; margin-top: 24px;">
+                        <h4 style="margin-top: 0; color: #60a5fa;">🚀 One Step to Go: Link Your Phone</h4>
+                        <p style="font-size: 0.9rem; color: #cbd5e1;">Choose one method to connect your missed calls to
+                            AI:</p>
+
+                        <!-- Method A -->
+                        <div style="margin-bottom: 16px;">
+                            <strong style="color: white; display:block; margin-bottom:4px;">Method A: Call Forwarding
+                                (Simpler)</strong>
+                            <div style="font-size: 0.85rem; color: #94a3b8;">
+                                Dial this code on your phone to forward unanswered calls to your AI Number (Check
+                                Vapi/Twilio for your assigned AI number).
+                                <br>
+                                <code
+                                    style="background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 4px; color: #fbbf24; margin-top:4px; display:inline-block;">**21*&lt;AI_PHONE_NUMBER&gt;#</code>
+                            </div>
+                        </div>
+
+                        <!-- Method B -->
+                        <div>
+                            <strong style="color: white; display:block; margin-bottom:4px;">Method B: Android App
+                                Automation (Reliable)</strong>
+                            <div style="font-size: 0.85rem; color: #94a3b8;">
+                                Install <b>MacroDroid</b> app. Create a macro: "Trigger: Call Missed" -> "Action: HTTP
+                                GET".
+                                <br>Use this Magic URL:
+                            </div>
+                            <div style="display:flex; gap:8px; margin-top:8px;">
+                                <input type="text" id="webhook-url-box" readonly value="Loading..."
+                                    style="font-size: 0.8rem; background: rgba(0,0,0,0.4); color: #a5b4fc;">
+                                <button class="btn" style="padding: 4px 12px; font-size: 0.8rem;"
+                                    onclick="navigator.clipboard.writeText(document.getElementById('webhook-url-box').value); alert('Copied!');">Copy</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div style="text-align: right; margin-top: 30px;">
                         <button class="btn" onclick="updateAIConfig()" id="save-config-btn">Save Changes</button>
                         <p id="config-msg" style="margin-top: 10px; font-size: 0.9rem; display: none;"></p>
@@ -1082,6 +1120,7 @@
             async function updateAIConfig() {
                 const btn = document.getElementById('save-config-btn');
                 const msg = document.getElementById('config-msg');
+                const activationPanel = document.getElementById('activation-panel');
                 const token = localStorage.getItem('token');
 
                 btn.disabled = true;
@@ -1104,15 +1143,36 @@
                         },
                         body: JSON.stringify(payload)
                     });
+
+                    // Backend returns { detail: "..." } on error, { success: true } on success
                     const result = await response.json();
 
-                    if (result.success) {
+                    if (response.ok && result.success) {
                         msg.style.display = 'block';
                         msg.style.color = '#34d399';
                         msg.innerText = result.message;
                         btn.innerText = "Saved!";
+
+                        // Show Activation Panel
+                        activationPanel.style.display = 'block';
+
+                        // Construct Webhook URL
+                        // Attempt to get email from header (loaded by initDashboard)
+                        let userEmail = document.getElementById('user-email-header').innerText;
+                        if (!userEmail || userEmail === "Loading...") {
+                            // Fallback or try to decode token simple way (if needed), or just ask user to refresh
+                            userEmail = "YOUR_EMAIL";
+                        }
+
+                        const webhookUrl = `https://missed-call-saviour-ready-production.up.railway.app/api/hooks/android-trigger?email=${userEmail}&phone=[call_number]`;
+                        document.getElementById('webhook-url-box').value = webhookUrl;
+
+                        // Scroll to panel
+                        activationPanel.scrollIntoView({ behavior: 'smooth' });
+
                     } else {
-                        throw new Error(result.error || "Failed");
+                        // Use 'detail' from backend if available, or 'error', or generic text
+                        throw new Error(result.detail || result.error || "Failed to update settings.");
                     }
                 } catch (e) {
                     msg.style.display = 'block';
