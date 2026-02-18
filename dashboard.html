@@ -686,7 +686,7 @@
             }
 
             logs.forEach(log => {
-                const date = new Date(log.timestamp).toLocaleString();
+                const date = new Date(log.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
                 const statusColor = log.status === 'completed' ? 'status-active' : 'status-inactive';
                 const statusText = log.status === 'completed' ? 'Completed' : 'Failed';
 
