@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from pydantic import EmailStr
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, inspect, text
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, inspect, text, or_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime, timedelta
@@ -495,6 +495,26 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
         # Vapi payloads can vary wildly. We assume 'message' or root.
         data = payload.get("message", payload)
         
+        # MULTI-TENANT LOGIC: Identify User by Assistant ID
+        call_obj = data.get("call", {})
+        assistant_id = data.get("assistantId") or call_obj.get("assistantId")
+        user_email = None
+        
+        if assistant_id:
+            db_session = SessionLocal()
+            try:
+                # Find which user owns this specific AI Assistant
+                config = db_session.query(AIConfig).filter(AIConfig.vapi_assistant_id == assistant_id).first()
+                if config:
+                    user_email = config.user_email
+                    print(f"✅ Call Routed to User: {user_email} (Assistant: {assistant_id})")
+                else:
+                    print(f"⚠️ Unknown Assistant ID: {assistant_id}. Logging as Global/Admin.")
+            except Exception as e:
+                print(f"Error checking assistant_id: {e}")
+            finally:
+                db_session.close()
+        
         if message_type == "function-call":
              # ... (function call logic preserved) ...
             function_name = data.get("functionCall", {}).get("name")
@@ -625,7 +645,8 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                          summary=summary,
                          transcript=transcript, 
                          recording_url=recording_url,
-                         duration=int(duration) if duration else 0
+                         duration=int(duration) if duration else 0,
+                         user_email=user_email # Link to specific user
                      )
                      db.add(new_call)
                      db.commit()
@@ -708,21 +729,27 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
 
 @app.get("/api/calls")
 async def get_call_logs(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    # In a real SaaS, filter by current_user.id or phone_number
-    # For now in MVP (single tenant feeling), return last 20 calls
-    logs = db.query(CallLog).order_by(CallLog.timestamp.desc()).limit(20).all()
+    # MULTI-TENANT SECURITY: 
+    # Show logs for logged-in user OR unassigned logs (legacy data / global calls)
+    logs = db.query(CallLog).filter(
+        or_(CallLog.user_email == current_user.email, CallLog.user_email == None)
+    ).order_by(CallLog.timestamp.desc()).limit(50).all()
     return logs
 
 @app.get("/api/dashboard/stats")
 async def get_dashboard_stats(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    # 1. Total Calls
-    total_calls = db.query(CallLog).count()
+    # 1. Total Calls (Filtered)
+    total_calls = db.query(CallLog).filter(
+        or_(CallLog.user_email == current_user.email, CallLog.user_email == None)
+    ).count()
     
     # 2. Estimate Revenue (Mock logic: Each call "saves" $200 potentially)
     est_revenue = total_calls * 200
     
-    # 3. Recent Activity (Last 5 calls)
-    recent_calls = db.query(CallLog).order_by(CallLog.timestamp.desc()).limit(5).all()
+    # 3. Recent Activity (Filtered)
+    recent_calls = db.query(CallLog).filter(
+        or_(CallLog.user_email == current_user.email, CallLog.user_email == None)
+    ).order_by(CallLog.timestamp.desc()).limit(5).all()
     
     recent_activity = []
     for call in recent_calls:
@@ -756,7 +783,8 @@ class AIConfig(Base):
     business_name = Column(String, default="My Business")
     greeting = Column(String, default="Namaste! Main kaise help kar sakta hoon?")
     persona = Column(String, default="friendly")
-    owner_phone = Column(String, nullable=True) # New: Owner's real mobile number # New Persona Field
+    owner_phone = Column(String, nullable=True)
+    vapi_assistant_id = Column(String, nullable=True) # CRITICAL: Links User to their unique Vapi Agent # New Persona Field
 
 # Table creation moved to startup_event
 
@@ -811,13 +839,17 @@ async def update_ai_config(
     vapi_private_key = VAPI_PRIVATE_KEY
     vapi_assistant_id = VAPI_ASSISTANT_ID
 
-    if not vapi_private_key or not vapi_assistant_id:
-        print("Vapi environment variables missing.")
-        # We perform a soft failure here - DB updated, but Vapi not connected
-        return JSONResponse(content={"success": True, "message": "Settings saved to DB, but Vapi Agent not updated (Missing API Keys)."})
+        vapi_url = "https://api.vapi.ai/assistant"
+        method = "POST"
+        
+        # If User already has an Assistant, UPDATE it (PATCH). If not, CREATE one (POST).
+        if config.vapi_assistant_id:
+             vapi_url = f"https://api.vapi.ai/assistant/{config.vapi_assistant_id}"
+             method = "PATCH"
+             print(f"Updating Existing Assistant: {config.vapi_assistant_id}")
+        else:
+             print("Creating NEW Vapi Assistant for User...")
 
-    try:
-        vapi_url = f"https://api.vapi.ai/assistant/{vapi_assistant_id}"
         headers = {
             "Authorization": f"Bearer {vapi_private_key}",
             "Content-Type": "application/json"
@@ -851,6 +883,7 @@ async def update_ai_config(
         """
         
         payload = {
+            "name": f"{business_name} - Assistant",
             "model": {
                 "provider": "openai",
                 "model": "gpt-4o",
@@ -858,18 +891,29 @@ async def update_ai_config(
                     {"role": "system", "content": updated_prompt}
                 ]
             },
+            "serverUrl": webhook_url, # Ensure Webhook is linked
             "analysisPlan": { "summaryPlan": { "enabled": True } },
             "artifactPlan": { "recordingEnabled": True, "transcriptPlan": { "enabled": True } }
         }
         
         async with httpx.AsyncClient() as client:
-            response = await client.patch(vapi_url, json=payload, headers=headers)
+            if method == "POST":
+                response = await client.post(vapi_url, json=payload, headers=headers)
+            else:
+                response = await client.patch(vapi_url, json=payload, headers=headers)
             
-            if response.status_code != 200:
-                print(f"Vapi Update Error: {response.text}")
+            if response.status_code not in [200, 201]:
+                print(f"Vapi Error: {response.text}")
                 return JSONResponse(status_code=500, content={"error": f"Vapi Error: {response.text}"})
+            
+            # If we created a new assistant, save the ID
+            if method == "POST":
+                new_assistant = response.json()
+                config.vapi_assistant_id = new_assistant.get("id")
+                db.commit()
+                print(f"✅ New Assistant Created & Linked: {config.vapi_assistant_id}")
                 
-        return {"success": True, "message": "AI Settings Updated!"}
+        return {"success": True, "message": "AI Settings Updated & Unique Agent Deployed!"}
 
     except Exception as e:
         print(f"Vapi Config Update Exception: {e}")
@@ -942,6 +986,12 @@ async def startup_event():
                         connection.execute(text("ALTER TABLE ai_configs ADD COLUMN owner_phone VARCHAR(50)"))
                         connection.commit()
                         print("Migration successful: added 'owner_phone' column.")
+
+                    if "vapi_assistant_id" not in columns:
+                         print("Migrating DB: Adding vapi_assistant_id column to ai_configs...")
+                         connection.execute(text("ALTER TABLE ai_configs ADD COLUMN vapi_assistant_id VARCHAR(100)"))
+                         connection.commit()
+                         print("Migration successful: added 'vapi_assistant_id' column.")
             except Exception as e:
                 print(f"Migration step failed: {e}")
                 
