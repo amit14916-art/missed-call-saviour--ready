@@ -841,6 +841,9 @@ async def update_ai_config(
              print("Vapi environment variables missing.", flush=True)
              return {"success": True, "message": "Settings saved to DB (Vapi Not Configured)."}
 
+        # Define Webhook URL (Production)
+        webhook_url = "https://missed-call-saviour-ready-production.up.railway.app/api/vapi/webhook"
+
         # vapi_assistant_id is no longer global, we use config.vapi_assistant_id
 
         vapi_url = "https://api.vapi.ai/assistant"
