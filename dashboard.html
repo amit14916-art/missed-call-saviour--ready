@@ -1168,11 +1168,11 @@
                             tbody.insertAdjacentHTML('beforeend', row);
                         });
                     } else {
-                        tbody.innerHTML = `< tr > <td colspan="7" style="text-align:center; color: #ef4444;">Failed to load users: ${response.status}</td></tr > `;
+                        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: #ef4444;">Failed to load users: ${response.status} (Try Logging Out)</td></tr>`;
                     }
                 } catch (e) {
                     console.error("Admin fetch error", e);
-                    tbody.innerHTML = `< tr > <td colspan="7" style="text-align:center; color: #ef4444;">Error loading data.</td></tr > `;
+                    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: #ef4444;">Error loading data.</td></tr>`;
                 }
             }
 
