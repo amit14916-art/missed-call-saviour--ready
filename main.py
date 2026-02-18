@@ -584,13 +584,13 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                  if customer_number != "Unknown":
                      existing_call = db.query(CallLog).filter(
                          CallLog.phone_number == customer_number,
-                         CallLog.status == "initiated"
+                         CallLog.status.in_(["initiated", "completed"]) # Allow updating calls marked via status-update
                      ).order_by(CallLog.id.desc()).first()
                  
                  # Fallback: Match ANY recent initiated call
                  if not existing_call:
                      existing_call = db.query(CallLog).filter(
-                         CallLog.status == "initiated"
+                         CallLog.status.in_(["initiated", "completed"]) 
                      ).order_by(CallLog.id.desc()).first()
 
                  if existing_call:
