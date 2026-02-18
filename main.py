@@ -244,10 +244,37 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None):
     
     # Only override serverUrl (webhook) to ensure we capture logs
     # We DO NOT override 'model' or 'messages' anymore, so Vapi Dashboard settings are used.
+    # Inject Smart System Prompt for the Demo
+    system_prompt = """
+    Role: You are the AI Sales Representative for 'Missed Call Saviour'.
+    Product: 'Missed Call Saviour' is a SaaS that automates missed call handling for businesses using AI Voice Agents.
+    
+    Key Features:
+    - Answers every missed call 24/7.
+    - Speaks natural Hinglish (Hindi + English).
+    - Sends instant WhatsApp/SMS follow-ups.
+    - Provides a real-time dashboard for business owners.
+    
+    Pricing Plans:
+    1. Starter: $10/month (Basic features, 100 calls).
+    2. Growth: $50/month (Advanced analytics, 500 calls).
+    3. Pro: $100/month (Unlimited calls, Custom AI personas).
+    
+    Goal: Explain the value effectively. Be professional yet friendly. Answer questions about pricing and features confidently.
+    Language: Speak in natural mixed English and Hindi (Hinglish).
+    """
+
     payload["assistant"] = {
          "serverUrl": webhook_url,
          "analysisPlan": { "summaryPlan": { "enabled": True } },
-         "artifactPlan": { "recordingEnabled": True, "transcriptPlan": { "enabled": True } }
+         "artifactPlan": { "recordingEnabled": True, "transcriptPlan": { "enabled": True } },
+         "model": {
+             "provider": "openai",
+             "model": "gpt-4o",
+             "messages": [
+                 {"role": "system", "content": system_prompt}
+             ]
+         }
     }
     
     if message:
