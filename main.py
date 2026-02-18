@@ -480,7 +480,7 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
         # RAW PAYLOAD LOGGING (CRITICAL)
         body_bytes = await request.body()
         raw_body_str = body_bytes.decode('utf-8')
-        print(f"\n🔥 WEBHOOK RECEIVED! Raw Body: {raw_body_str}")
+        print(f"\n🔥 WEBHOOK RECEIVED! Raw Body: {raw_body_str}", flush=True)
         sys.stdout.flush()
 
         try:
@@ -491,7 +491,7 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
 
         # Normalize message type
         message_type = payload.get("message", {}).get("type") or payload.get("type")
-        print(f"Parsed Message Type: {message_type}")
+        print(f"Parsed Message Type: {message_type}", flush=True)
         sys.stdout.flush()
 
         # Extract Deeply Nested Logic
@@ -517,7 +517,7 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                  analysis = data.get("call", {}).get("analysis", {})
              
              summary = analysis.get("summary", "No summary provided.")
-             print(f"📝 SUMMARY EXTRACTED: {summary}")
+             print(f"📝 SUMMARY EXTRACTED: {summary}", flush=True)
              
              recording_url = data.get("recordingUrl")
              if not recording_url:
@@ -539,7 +539,7 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
              if not customer_number:
                  customer_number = "Unknown"
 
-             print(f"Saving Call Log -> Phone: {customer_number}, Duration: {duration}s")
+             print(f"Saving Call Log -> Phone: {customer_number}, Duration: {duration}s", flush=True)
              sys.stdout.flush()
 
              # Database Logic
@@ -582,7 +582,7 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                      )
                      db.add(new_call)
                      db.commit()
-                     print("New Call Log SAVED Successfully!")
+                     print("New Call Log SAVED Successfully!", flush=True)
                  
                  sys.stdout.flush()
              except Exception as db_e:
