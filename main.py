@@ -269,8 +269,9 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None):
     - Convince the user that missing calls = losing money.
     - Explain that setup takes less than 2 minutes (just call forwarding).
     - Be confident, professional, and persuasive.
+    - Mention: "I am an AI, but I can handle your entire front desk."
     
-    Language: Speak in natural mixed English and Hindi (Hinglish). Use terms like "Business badhega", "Customer khush rahega".
+    Language: Speak in clear, professional English with a distinct Indian accent. Do not use Hinglish unless the user switches to Hindi. Focus on business value and ROI.
     """
 
     payload["assistant"] = {
@@ -537,17 +538,31 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
              if (not summary or summary == "No summary provided.") and transcript and transcript != "Transcript not provided.":
                  keywords = []
                  text_lower = transcript.lower()
-                 if "price" in text_lower or "cost" in text_lower or "rate" in text_lower: keywords.append("Pricing")
-                 if "appointment" in text_lower or "book" in text_lower or "schedule" in text_lower: keywords.append("Appointment")
-                 if "urgent" in text_lower or "emergency" in text_lower: keywords.append("Urgent")
-                 if "refund" in text_lower: keywords.append("Refund")
+                 if "price" in text_lower or "cost" in text_lower or "rate" in text_lower: keywords.append("Pricing 💰")
+                 if "appointment" in text_lower or "book" in text_lower or "schedule" in text_lower: keywords.append("Appointment 📅")
+                 if "urgent" in text_lower or "emergency" in text_lower: keywords.append("Urgent 🚨")
+                 if "refund" in text_lower: keywords.append("Refund 💸")
                  
-                 validation_prefix = "[Auto-Generated] "
+                 validation_prefix = "📊 [Auto-Generated Insights]\n"
+                 data_points = []
+                 
                  if keywords:
-                     summary = f"{validation_prefix}Topics: {', '.join(keywords)}"
+                     data_points.append(f"• Key Topics: {', '.join(keywords)}")
                  else:
-                     # Preview first 80 chars
-                     summary = f"{validation_prefix}{transcript[:80]}..."
+                     data_points.append(f"• Topic: General Inquiry")
+
+                 # Simple Sentiment Analysis
+                 if "angry" in text_lower or "upset" in text_lower or "bad" in text_lower: 
+                     data_points.append("• Sentiment: Negative 🔴")
+                 elif "thank" in text_lower or "great" in text_lower or "good" in text_lower: 
+                     data_points.append("• Sentiment: Positive 🟢")
+                 else: 
+                     data_points.append("• Sentiment: Neutral ⚪")
+                 
+                 # Preview
+                 data_points.append(f"• Context: \"{transcript[:60]}...\"")
+
+                 summary = validation_prefix + "\n".join(data_points)
 
              # Phone Extraction
              customer_number = None
@@ -811,17 +826,17 @@ async def update_ai_config(
         # Determine Prompt based on Persona
         tone_instruction = ""
         if persona == "professional":
-            tone_instruction = "Tone: Be strictly professional, polite, and concise. Use formal language (Aap, Sir/Ma'am). reliable and trustworthy."
+            tone_instruction = "Tone: Be strictly professional, polite, and concise. Use formal Indian English. Reliable and trustworthy."
         elif persona == "urgent":
-            tone_instruction = "Tone: Be high-energy (sales mode). Create urgency. Focus on booking the appointment NOW. Use persuasive language."
+            tone_instruction = "Tone: Be high-energy (sales mode). Create urgency. Focus on booking the appointment NOW. Use persuasive Indian English."
         else: # friendly
-            tone_instruction = "Tone: Be warm, engaging, and patient like a friend. Use natural Hinglish with common words like 'Ji', 'Haan', 'Thik hai'."
+            tone_instruction = "Tone: Be warm, engaging, and patient like a friend. Use clear Indian English with a welcoming vibe."
 
-        # New "Conversational Hinglish" Prompt
+        # New "Indian English" Prompt
         updated_prompt = f"""
         Role: You are a {persona} AI receptionist for {business_name}.
         Context: You are handling calls for an Indian business.
-        Language: Speak in natural Hinglish (mix of Hindi and English).
+        Language: Speak in clear, professional English with an Indian accent. Do not use Hinglish unless requested.
         {tone_instruction}
         Task: 
         1. Start by welcoming them with: "{greeting}"

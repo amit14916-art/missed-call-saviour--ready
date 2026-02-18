@@ -777,20 +777,58 @@
             const summary = log.summary || 'No summary available.';
             const transcript = log.transcript || 'No transcript available.';
 
+            // Format Summary with "Graphics" (Emojis/Structure) if it's plain text
+            let formattedSummary = summary;
+            if (!summary.includes("<ul>") && !summary.includes("Topics:")) {
+                // Try to beautify plain text
+                formattedSummary = `
+                    <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px;">
+                        <p><strong>📊 Call Overview:</strong> ${summary}</p>
+                    </div>
+                 `;
+            }
+
             const htmlContent = `
                 <div style="margin-bottom: 20px;">
-                    <h4 style="margin-top:0; color: #94a3b8; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">AI Summary</h4>
-                    <p style="color: #e2e8f0; font-size: 0.95rem;">${summary}</p>
+                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; margin-bottom:10px;">
+                        <h4 style="margin:0; color: #94a3b8;">AI Summary & Insights</h4>
+                        <div style="gap:10px; display:flex;">
+                            <button onclick="copyToClipboard('summary-text')" style="background:rgba(255,255,255,0.1); border:none; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.8rem;">📋 Copy</button>
+                            <button onclick="downloadTranscript(${log.id})" style="background:rgba(255,255,255,0.1); border:none; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.8rem;">⬇️ Download</button>
+                        </div>
+                    </div>
+                    <div id="summary-text" style="color: #e2e8f0; font-size: 0.95rem; line-height:1.6; white-space: pre-wrap;">${formattedSummary}</div>
                 </div>
                 <div>
                     <h4 style="margin-top:0; color: #94a3b8; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">Full Transcript</h4>
-                    <p style="color: #cbd5e1; font-size: 0.9rem; white-space: pre-wrap;">${transcript}</p>
+                    <div id="transcript-text" style="color: #cbd5e1; font-size: 0.9rem; white-space: pre-wrap; max-height:200px; overflow-y:auto; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px;">${transcript}</div>
                 </div>
             `;
 
             document.getElementById('modal-content').innerHTML = htmlContent;
             document.getElementById('transcript-modal').style.display = 'block';
             document.getElementById('modal-overlay').style.display = 'block';
+        }
+
+        function copyToClipboard(elementId) {
+            const text = document.getElementById(elementId).innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                alert("Copied to clipboard!");
+            });
+        }
+
+        function downloadTranscript(logId) {
+            const log = window.allCallLogs.find(l => l.id === logId);
+            if (!log) return;
+
+            const content = `CALL SUMMARY:\n${log.summary}\n\nFULL TRANSCRIPT:\n${log.transcript}`;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Call_Log_${logId}.txt`;
+            a.click();
+            window.URL.revokeObjectURL(url);
         }
 
         function closeModal() {
