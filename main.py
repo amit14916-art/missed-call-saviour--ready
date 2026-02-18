@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from pydantic import EmailStr
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, inspect, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime, timedelta
@@ -182,6 +182,28 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
         print(f"Error processing Vapi webhook: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+# Startup Event for Migrations
+@app.on_event("startup")
+async def startup_event():
+    # Ensure tables exist
+    Base.metadata.create_all(bind=engine)
+    
+    # Auto-Migration: Add 'transcript' column if missing
+    try:
+        inspector = inspect(engine)
+        columns = [col['name'] for col in inspector.get_columns('call_logs')]
+        if 'transcript' not in columns:
+            print("⚠️ 'transcript' column missing in 'call_logs'. Attempting auto-migration...", flush=True)
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE call_logs ADD COLUMN transcript TEXT"))
+                conn.commit()
+            print("✅ Auto-migration successful: 'transcript' column added!", flush=True)
+        else:
+            print("✅ DB Check: 'transcript' column exists.", flush=True)
+    except Exception as e:
+        print(f"❌ Auto-migration failed: {e}", flush=True)
+
+# Define Dependency
 def get_db():
     db = SessionLocal()
     try:
@@ -579,9 +601,8 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                      if summary and summary != "No summary provided.":
                          existing_call.summary = summary
                      
-                     # COMMENTED OUT UNTIL DB MIGRATION IS CONFIRMED
-                     # if transcript:
-                     #    existing_call.transcript = transcript
+                     if transcript and transcript != "Transcript not provided.":
+                        existing_call.transcript = transcript
                      
                      if recording_url:
                          existing_call.recording_url = recording_url
@@ -598,7 +619,7 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                          call_type="inbound", 
                          status="completed",
                          summary=summary,
-                         # transcript=transcript, # COMMENTED OUT
+                         transcript=transcript, 
                          recording_url=recording_url,
                          duration=int(duration) if duration else 0
                      )
