@@ -716,6 +716,7 @@
                 });
                 if (response.ok) {
                     const logs = await response.json();
+                    window.allCallLogs = logs; // Store globally for modal access
                     renderCallLogs(logs);
                 }
             } catch (e) {
@@ -748,8 +749,8 @@
                     ? `<audio controls src="${log.recording_url}" style="height: 30px; width: 220px; border-radius: 20px;"></audio>`
                     : '<span style="color: #64748b;">No Audio</span>';
 
-                // View Summary Button
-                const summaryBtn = `<button onclick="openModal('${encodeURIComponent(log.summary || 'No summary available.')}', '${encodeURIComponent(log.transcript || 'No transcript available.')}')" style="background:none; border:none; color: #00c6ff; cursor: pointer; text-decoration: underline;">View Call Details</button>`;
+                // View Summary Button (Safe ID-based open)
+                const summaryBtn = `<button onclick="openModal(${log.id})" style="background:none; border:none; color: #00c6ff; cursor: pointer; text-decoration: underline;">View Call Details</button>`;
 
                 const row = `
                     <tr>
@@ -769,9 +770,12 @@
         }
 
         // Modal functions
-        function openModal(encodedSummary, encodedTranscript) {
-            const summary = decodeURIComponent(encodedSummary);
-            const transcript = decodeURIComponent(encodedTranscript || '');
+        function openModal(logId) {
+            const log = window.allCallLogs.find(l => l.id === logId);
+            if (!log) return;
+
+            const summary = log.summary || 'No summary available.';
+            const transcript = log.transcript || 'No transcript available.';
 
             const htmlContent = `
                 <div style="margin-bottom: 20px;">
@@ -956,6 +960,7 @@
                 })
                     .then(res => res.json())
                     .then(logs => {
+                        window.allCallLogs = logs; // Sync global state for modal
                         // Create a simple "hash" of valid data to detect changes
                         // We allow 'duration' to update without re-render if it's the same
                         // But if status changes (Initiated -> Completed), we MUST re-render
