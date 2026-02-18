@@ -245,7 +245,9 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None):
     # Only override serverUrl (webhook) to ensure we capture logs
     # We DO NOT override 'model' or 'messages' anymore, so Vapi Dashboard settings are used.
     payload["assistant"] = {
-         "serverUrl": webhook_url
+         "serverUrl": webhook_url,
+         "analysisPlan": { "summaryPlan": { "enabled": True } },
+         "artifactPlan": { "recordingEnabled": True, "transcriptPlan": { "enabled": True } }
     }
     
     if message:
@@ -785,6 +787,8 @@ async def update_ai_config(
                     {"role": "system", "content": updated_prompt}
                 ]
             },
+            "analysisPlan": { "summaryPlan": { "enabled": True } },
+            "artifactPlan": { "recordingEnabled": True, "transcriptPlan": { "enabled": True } }
         }
         
         async with httpx.AsyncClient() as client:
