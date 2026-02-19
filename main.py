@@ -19,6 +19,39 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+import asyncio
+from fastapi.responses import StreamingResponse
+
+# --- SSE Manager ---
+class SSEManager:
+    def __init__(self):
+        self.connections = set()
+
+    async def connect(self, request: Request):
+        queue = asyncio.Queue()
+        self.connections.add(queue)
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    # Wait for message with timeout to send keep-alive
+                    data = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    yield f"data: {data}\n\n"
+                except asyncio.TimeoutError:
+                    yield f"data: ping\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            self.connections.remove(queue)
+
+    async def broadcast(self, message: str):
+        for connection in list(self.connections):
+            await connection.put(message)
+
+sse_manager = SSEManager()
+
+
 # --- Configuration ---
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 DOMAIN = os.getenv("DOMAIN", "http://127.0.0.1:8000")
@@ -263,7 +296,7 @@ async def send_email_background(subject: str, email_to: str, body: str):
         print(f"Failed to send email: {e}")
 
 # --- Vapi Helper ---
-async def trigger_vapi_outbound_call(phone: str, message: str = None):
+async def trigger_vapi_outbound_call(phone: str, message: str = None, user_email: str = None):
     """
     Triggers an outbound call using Vapi.ai API
     """
@@ -287,6 +320,10 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None):
         "number": phone
       },
       "phoneNumberId": vapi_phone_number_id,
+      "metadata": {
+          "user_email": user_email
+      },
+
     }
     
     # Only override serverUrl (webhook) to ensure we capture logs
@@ -360,6 +397,11 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None):
 async def read_root():
     with open(os.path.join(BASE_DIR, "index.html"), "r", encoding="utf-8") as f:
         return f.read()
+
+@app.get("/api/sse")
+async def sse_endpoint(request: Request):
+    return StreamingResponse(sse_manager.connect(request), media_type="text/event-stream")
+
 
 @app.get("/chatbot.js")
 async def read_chatbot_js():
@@ -484,7 +526,7 @@ async def send_demo_call(
     try:
         # We pass a generic opening message just to start the call, 
         # but the Persona/System Prompt comes from Vapi now.
-        await trigger_vapi_outbound_call(phone, "Namaste! This is a demo call from Missed Call Saviour.")
+        await trigger_vapi_outbound_call(phone, "Namaste! This is a demo call from Missed Call Saviour.", user_email=current_user.email)
         return {"success": True, "message": "Demo call initiated successfully."}
     except Exception as e:
         print(f"Error in demo call endpoint: {e}")
@@ -543,25 +585,34 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
         # Vapi payloads can vary wildly. We assume 'message' or root.
         data = payload.get("message", payload)
         
-        # MULTI-TENANT LOGIC: Identify User by Assistant ID
+        # MULTI-TENANT LOGIC: Identify User
         call_obj = data.get("call", {})
-        assistant_id = data.get("assistantId") or call_obj.get("assistantId")
-        user_email = None
+        metadata = payload.get("metadata") or call_obj.get("metadata") or {}
         
-        if assistant_id:
+        # 1. Check Metadata (Primary Source for Outbound/Demo Calls)
+        user_email = metadata.get("user_email")
+        
+        # 2. Check Assistant ID (Secondary Source for Inbound Calls from specific assistants)
+        assistant_id = data.get("assistantId") or call_obj.get("assistantId")
+        
+        if not user_email and assistant_id:
             db_session = SessionLocal()
             try:
                 # Find which user owns this specific AI Assistant
                 config = db_session.query(AIConfig).filter(AIConfig.vapi_assistant_id == assistant_id).first()
                 if config:
                     user_email = config.user_email
-                    print(f"✅ Call Routed to User: {user_email} (Assistant: {assistant_id})")
+                    print(f"✅ Call Routed to User via Assistant ID: {user_email}")
                 else:
                     print(f"⚠️ Unknown Assistant ID: {assistant_id}. Logging as Global/Admin.")
             except Exception as e:
                 print(f"Error checking assistant_id: {e}")
             finally:
                 db_session.close()
+        
+        if user_email:
+             print(f"✅ Call Identified for User: {user_email}")
+
         
         if message_type == "function-call":
              # ... (function call logic preserved) ...
@@ -683,6 +734,7 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                          existing_call.duration = int(duration)
                          
                      db.commit()
+                     await sse_manager.broadcast("update_dashboard")
                      print("Call Log MERGED Successfully!", flush=True)
                  else:
                      print("No Initiated call found. Creating new row.", flush=True)
@@ -698,6 +750,7 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                      )
                      db.add(new_call)
                      db.commit()
+                     await sse_manager.broadcast("update_dashboard")
                      print("New Call Log SAVED Successfully!", flush=True)
                  
              except Exception as db_e:
@@ -752,6 +805,7 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                          existing_call.summary = summary
                      
                      db.commit()
+                     await sse_manager.broadcast("update_dashboard")
                      print("Call Marked Completed via status-update!", flush=True)
                  else:
                      print("No initiated call to complete via status-update.", flush=True)
@@ -779,17 +833,18 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
 @app.get("/api/calls")
 async def get_call_logs(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # MULTI-TENANT SECURITY: 
-    # Show logs for logged-in user OR unassigned logs (legacy data / global calls)
+    # Show logs for logged-in user ONLY
     logs = db.query(CallLog).filter(
-        or_(CallLog.user_email == current_user.email, CallLog.user_email == None)
+        CallLog.user_email == current_user.email
     ).order_by(CallLog.timestamp.desc()).limit(50).all()
     return logs
+
 
 @app.get("/api/dashboard/stats")
 async def get_dashboard_stats(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # 1. Total Calls (Filtered)
     total_calls = db.query(CallLog).filter(
-        or_(CallLog.user_email == current_user.email, CallLog.user_email == None)
+        CallLog.user_email == current_user.email
     ).count()
     
     # 2. Estimate Revenue (Mock logic: Each call "saves" $200 potentially)
@@ -797,8 +852,9 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user), db
     
     # 3. Recent Activity (Filtered)
     recent_calls = db.query(CallLog).filter(
-        or_(CallLog.user_email == current_user.email, CallLog.user_email == None)
+        CallLog.user_email == current_user.email
     ).order_by(CallLog.timestamp.desc()).limit(5).all()
+
     
     recent_activity = []
     for call in recent_calls:
@@ -815,12 +871,35 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user), db
             "status": outcome,
             "recording_url": call.recording_url
         })
+        
+    # 4. Weekly Call Volume (Last 7 Days)
+    from datetime import timedelta
+    today = datetime.utcnow().date()
+    weekly_volume = []
+    
+    # Generate labels (e.g., "Mon", "Tue") and data count for the last 7 days
+    days_labels = []
+    
+    for i in range(6, -1, -1):
+        day_start = datetime.combine(today - timedelta(days=i), datetime.min.time())
+        day_end = datetime.combine(today - timedelta(days=i), datetime.max.time())
+        
+        count = db.query(CallLog).filter(
+            or_(CallLog.user_email == current_user.email, CallLog.user_email == None),
+            CallLog.timestamp >= day_start,
+            CallLog.timestamp <= day_end
+        ).count()
+        
+        weekly_volume.append(count)
+        days_labels.append(day_start.strftime("%a"))
 
     return {
         "missed_calls_saved": total_calls,
         "est_revenue": est_revenue,
         "engagement_rate": "100%", # Placeholder
-        "recent_activity": recent_activity
+        "recent_activity": recent_activity,
+        "weekly_volume": weekly_volume,
+        "weekly_labels": days_labels
     }
 
 # --- AI Configuration Endpoints ---
@@ -899,11 +978,11 @@ async def update_ai_config(
         # If User already has an Assistant, UPDATE it (PATCH). If not, CREATE one (POST).
         # Check against "Not Created" string just in case legacy data exists
         if config.vapi_assistant_id and config.vapi_assistant_id != "Not Created":
-                vapi_url = f"https://api.vapi.ai/assistant/{config.vapi_assistant_id}"
-                method = "PATCH"
-                print(f"Updating Existing Assistant: {config.vapi_assistant_id}")
+            vapi_url = f"https://api.vapi.ai/assistant/{config.vapi_assistant_id}"
+            method = "PATCH"
+            print(f"Updating Existing Assistant: {config.vapi_assistant_id}")
         else:
-                print("Creating NEW Vapi Assistant for User...")
+            print("Creating NEW Vapi Assistant for User...")
 
         headers = {
             "Authorization": f"Bearer {vapi_private_key}",
