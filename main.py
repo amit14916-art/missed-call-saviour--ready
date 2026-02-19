@@ -328,7 +328,6 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None, user_email
       # "metadata": { "user_email": ... }  <-- Removed to reduce complexity/failure risk.
       # User assignment now relies on send_demo_call DB logging + phone matching.
     }
-    }
     
     # Only override serverUrl (webhook) to ensure we capture logs
     # We DO NOT override 'model' or 'messages' anymore, so Vapi Dashboard settings are used.
