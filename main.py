@@ -212,6 +212,14 @@ async def startup_event():
                 conn.commit()
             print("✅ Auto-migration successful: 'is_admin' column added & User 1 promoted!", flush=True)
 
+        # Force First User as Admin (Safety Net)
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("UPDATE users SET is_admin = TRUE WHERE id = 1"))
+                conn.execute(text("UPDATE users SET is_admin = TRUE WHERE email = 'amit14916@gmail.com'"))
+                conn.commit()
+        except: pass
+
         if 'phone_number' not in columns_users:
             print("⚠️ 'phone_number' column missing in 'users'. Attempting auto-migration...", flush=True)
             with engine.connect() as conn:
@@ -1442,3 +1450,96 @@ async def upload_call_recording(
     except Exception as e:
         print(f"Upload failed: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+# --- Admin Routes ---
+@app.get("/api/admin/users")
+async def get_all_users(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    users = db.query(User).all()
+    user_list = []
+    for u in users:
+        # Get extra details
+        stats = db.query(CallLog).filter(or_(CallLog.user_email == u.email, CallLog.user_email == None)).count()
+        config = db.query(AIConfig).filter(AIConfig.user_email == u.email).first()
+        
+        user_list.append({
+            "id": u.id,
+            "email": u.email,
+            "business_name": config.business_name if config else "N/A",
+            "plan": u.plan,
+            "status": "Active" if u.is_active else "Inactive",
+            "is_admin": u.is_admin,
+            "total_calls": stats,
+            "vapi_assistant_id": config.vapi_assistant_id if config else "Not Created",
+            "joined_at": u.registration_date.strftime("%Y-%m-%d")
+        })
+    return user_list
+
+@app.delete("/api/admin/users/{user_id}")
+async def delete_user(user_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    
+    db.delete(user)
+    db.commit()
+    return {"message": "User deleted successfully"}
+
+# --- Demo Call Route ---
+@app.post("/api/send-demo-call")
+async def send_demo_call(
+    phone: str = Form(...), 
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """
+    Triggers an outbound call from Vapi to the user's phone number as a demo.
+    """
+    # 1. Get User Config or Default
+    config = db.query(AIConfig).filter(AIConfig.user_email == current_user.email).first()
+    assistant_id = config.vapi_assistant_id if config and config.vapi_assistant_id else VAPI_ASSISTANT_ID
+    
+    if not assistant_id or assistant_id == "Not Created":
+         return JSONResponse(status_code=400, content={"details": "AI Assistant not configured yet. Save settings first."})
+
+    vapi_url = "https://api.vapi.ai/call"
+    headers = {
+        "Authorization": f"Bearer {VAPI_PRIVATE_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "assistantId": assistant_id,
+        "customer": {
+            "number": phone
+        },
+        "phoneNumberId": VAPI_PHONE_NUMBER_ID  # Must be a purchased Vapi/Twilio number
+    }
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(vapi_url, json=payload, headers=headers)
+            if response.status_code == 201:
+                # Log the initiated call
+                new_log = CallLog(
+                    user_email=current_user.email,
+                    phone_number=phone,
+                    call_type="outbound-demo",
+                    status="initiated",
+                    summary="Demo call triggered from dashboard."
+                )
+                db.add(new_log)
+                db.commit()
+                return {"success": True, "call_id": response.json().get("id")}
+            else:
+                 return JSONResponse(status_code=400, content={"details": f"Vapi Error: {response.text}"})
+        except Exception as e:
+            return JSONResponse(status_code=500, content={"details": str(e)})
