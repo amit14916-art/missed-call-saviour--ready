@@ -1259,12 +1259,13 @@ async def analyze_chat_message(request: ChatRequest):
     """
     Simulates the AI Agent's intelligence using direct REST API (bypassing gRPC issues).
     """
-    api_key = GEMINI_API_KEY.strip()
+    # Prefer Environment Variable to prevent leaks, fallback to hardcoded
+    api_key = os.getenv("GEMINI_API_KEY", GEMINI_API_KEY).strip()
     if not api_key:
         return JSONResponse(status_code=500, content={"error": "Gemini API Key missing."})
     
-    # Use latest available Gemini models (old ones are retired)
-    models_to_try = ["gemini-2.0-flash", "gemini-2.5-flash"]
+    # Try multiple models for maximum compatibility
+    models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
     
     async with httpx.AsyncClient() as client:
         for model in models_to_try:
