@@ -1285,7 +1285,7 @@ async def analyze_chat_message(request: ChatRequest):
             }
             
             try:
-                response = await client.post(url, json=payload, timeout=10.0)
+                response = await client.post(url, json=payload, timeout=30.0)
                 if response.status_code == 200:
                     data = response.json()
                     # Extract text: candidates[0].content.parts[0].text

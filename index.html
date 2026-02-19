@@ -794,7 +794,7 @@
                 if (data.reply) {
                     addMessage('ai', data.reply);
                 } else {
-                    addMessage('ai', 'Error: Could not connect to AI.');
+                    addMessage('ai', 'Error: ' + (data.error || 'Unknown error'));
                 }
             } catch (err) {
                 console.error(err);
