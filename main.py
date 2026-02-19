@@ -24,8 +24,8 @@ from pathlib import Path
 # Configure Gemini
 try:
     genai.configure(api_key=GEMINI_API_KEY.strip())
-    gemini_model = genai.GenerativeModel('gemini-1.5-flash')
-    print("Gemini AI Configured Successfully (gemini-1.5-flash).")
+    gemini_model = genai.GenerativeModel('gemini-pro')
+    print("Gemini AI Configured Successfully (gemini-pro).")
 except Exception as e:
     print(f"Failed to configure Gemini: {e}")
     gemini_model = None
