@@ -1411,9 +1411,11 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
                     db.commit()
                     return {"reply": reply}
             except Exception as e:
-                print(f"Alex RAG Error: {e}")
+                print(f"Alex RAG Error Details: {e}", flush=True) # Explicitly log error
+                # return JSONResponse(status_code=500, content={"error": f"Error: {str(e)}"}) # Returning generic for now to not break UI if user faces it, checking logs is better
+                return JSONResponse(status_code=500, content={"error": f"Internal Error: {str(e)}"}) # Okay show it to user for debugging
                 
-    return JSONResponse(status_code=500, content={"error": "Alex is feeling a bit overwhelmed."})
+    return JSONResponse(status_code=500, content={"error": "Alex is feeling a bit overwhelmed (Model unavailable)."})
 
 @app.post("/api/upload-call-recording")
 async def upload_call_recording(
