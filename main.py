@@ -210,7 +210,6 @@ async def startup_event():
                 conn.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE"))
                 conn.execute(text("UPDATE users SET is_admin = TRUE WHERE id = 1")) # Make first user Admin
                 conn.execute(text("UPDATE users SET is_admin = TRUE WHERE email = 'amit14916@gmail.com'")) # Ensure Amit is Admin
-                conn.commit()
             print("✅ Auto-migration successful: 'is_admin' column added & User 1 promoted!", flush=True)
 
         # Force First User as Admin (Safety Net)
@@ -220,6 +219,20 @@ async def startup_event():
                 conn.execute(text("UPDATE users SET is_admin = TRUE WHERE email = 'amit14916@gmail.com'"))
                 conn.commit()
         except: pass
+
+        # --- DEBUG: Verify API Key Source ---
+        env_key = os.getenv("GEMINI_API_KEY", "").strip()
+        usage_key = env_key if env_key else GEMINI_API_KEY.strip()
+        
+        source = "Environment Variable (Railway)" if env_key else "Config File (Hardcoded)"
+        masked_key = f"********{usage_key[-4:]}" if len(usage_key) > 4 else "Not Set"
+        
+        print(f"🔑 Gemini Key Loaded From: {source}", flush=True)
+        print(f"🔑 Active Key Suffix: {masked_key}", flush=True)
+        
+        if not usage_key:
+            print("❌ CRITICAL: No Gemini API Key found!", flush=True)
+        # ------------------------------------
 
         if 'phone_number' not in columns_users:
             print("⚠️ 'phone_number' column missing in 'users'. Attempting auto-migration...", flush=True)
