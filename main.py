@@ -168,6 +168,14 @@ class ChatMessage(Base):
     content = Column(String)
     timestamp = Column(DateTime, default=datetime.utcnow)
 
+class KnowledgeBase(Base):
+    __tablename__ = "knowledge_base"
+    id = Column(Integer, primary_key=True, index=True)
+    question = Column(String)
+    answer = Column(String)
+    embedding = Column(String) # Storing as stringified list for simplicity if pgvector isn't installed
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
 # Table creation moved to startup_event
 
 # ... (rest of code)
@@ -1284,31 +1292,74 @@ async def vapi_knowledge_retrieval(payload: dict = Body(...), db: Session = Depe
 
     return {"context": "New lead detected. Be helpful and charismatic."}
 
+import json
+
+async def get_embedding(text: str, api_key: str):
+    """Generates embedding for RAG using Gemini's embedding model."""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={api_key}"
+    payload = {
+        "model": "models/text-embedding-004",
+        "content": {"parts": [{"text": text}]}
+    }
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(url, json=payload, timeout=10.0)
+            if resp.status_code == 200:
+                return resp.json()["embedding"]["values"]
+        except Exception as e:
+            print(f"Embedding Error: {e}")
+    return None
+
+def cosine_similarity(v1, v2):
+    if not v1 or not v2: return 0
+    dot = sum(a*b for a,b in zip(v1, v2))
+    norm1 = sum(a*a for a in v1)**0.5
+    norm2 = sum(b*b for b in v2)**0.5
+    return dot / (norm1 * norm2) if (norm1 * norm2) > 0 else 0
+
 @app.post("/api/analyze-chat")
 async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_db)):
     """
-    Alex's intelligence with persistent memory across conversation.
+    Alex's intelligence with RAG (Supabase + Vector Logic).
     """
     api_key = os.getenv("GEMINI_API_KEY", GEMINI_API_KEY).strip()
     if not api_key:
         return JSONResponse(status_code=500, content={"error": "Gemini API Key missing."})
     
-    # 1. Fetch History (Last 10 messages)
-    history = db.query(ChatMessage).filter(ChatMessage.session_id == request.session_id)\
-                .order_by(ChatMessage.timestamp.desc()).limit(11).all()
-    history.reverse() # Oldest first for Gemini
+    # 1. RAG: Fetch relevant knowledge
+    current_emb = await get_embedding(request.message, api_key)
+    rag_context = ""
     
-    # 2. Format History for Gemini
+    if current_emb:
+        kb_items = db.query(KnowledgeBase).all()
+        scored_items = []
+        for item in kb_items:
+            try:
+                item_emb = json.loads(item.embedding)
+                score = cosine_similarity(current_emb, item_emb)
+                if score > 0.85: # High similarity threshold
+                    scored_items.append(f"Q: {item.question}\nA: {item.answer}")
+            except: continue
+        
+        if scored_items:
+            rag_context = "\nRelevant Past Knowledge:\n" + "\n---\n".join(scored_items[:3])
+
+    # 2. Fetch Chat History (Memory)
+    history = db.query(ChatMessage).filter(ChatMessage.session_id == request.session_id)\
+                .order_by(ChatMessage.timestamp.desc()).limit(8).all()
+    history.reverse()
+    
     gemini_history = []
     for msg in history:
         role = "user" if msg.role == "user" else "model"
         gemini_history.append({"role": role, "parts": [{"text": msg.content}]})
 
-    # Advanced System Prompt for Alex
-    system_persona = """
-    Role: You are 'Alex', the senior AI lead at 'Missed Call Saviour'. 
-    Personality: Charismatic, super-intelligent, helpful. You remember the user's previous questions correctly.
-    Context: You are talking to a business owner on the website.
+    # Advanced System Prompt with RAG
+    system_persona = f"""
+    Role: You are 'Alex'. You have access to a Knowledge Base and previous conversation memory.
+    {rag_context}
+    
+    Instructions: Use the Relevant Past Knowledge if it helps answer accurately.
     """
 
     models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash"]
@@ -1321,12 +1372,10 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
 
         for model in models_to_try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-            
-            # Payload with Chat History
             payload = {
                 "contents": [
                     {"role": "user", "parts": [{"text": system_persona}]},
-                    {"role": "model", "parts": [{"text": "Understood. I am Alex, how can I help you today?"}]},
+                    {"role": "model", "parts": [{"text": "Understood. Using my knowledge base and memory."}]},
                     *gemini_history,
                     {"role": "user", "parts": [{"text": request.message}]}
                 ]
@@ -1338,18 +1387,25 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
                     data = response.json()
                     reply = data["candidates"][0]["content"]["parts"][0]["text"]
                     
-                    # 3. Save AI Reply to DB
+                    # 3. Save AI Reply to DB and KnowledgeBase (RAG)
                     ai_msg = ChatMessage(session_id=request.session_id, role="model", content=reply)
                     db.add(ai_msg)
-                    db.commit()
                     
+                    # Save to KnowledgeBase for future RAG
+                    if current_emb:
+                        new_kb = KnowledgeBase(
+                            question=request.message,
+                            answer=reply,
+                            embedding=json.dumps(current_emb)
+                        )
+                        db.add(new_kb)
+                    
+                    db.commit()
                     return {"reply": reply}
-                else:
-                    print(f"DEBUG: Model {model} failed ({response.status_code}): {response.text}")
             except Exception as e:
-                print(f"EXCEPTION during Alex call: {e}")
+                print(f"Alex RAG Error: {e}")
                 
-    return JSONResponse(status_code=500, content={"error": "Alex is temporarily sleeping. Try again later."})
+    return JSONResponse(status_code=500, content={"error": "Alex is feeling a bit overwhelmed."})
 
 @app.post("/api/upload-call-recording")
 async def upload_call_recording(
