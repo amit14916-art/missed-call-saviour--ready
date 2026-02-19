@@ -370,22 +370,15 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None, user_email
     Language: Speak in clear, professional English with a distinct Indian accent. Do not use Hinglish unless the user switches to Hindi. Focus on business value and ROI.
     """
 
-    payload["assistant"] = {
-          # Use local override for webhook to catch events (even if Vapi Dashboard is empty)
-         "serverUrl": webhook_url,
-         "analysisPlan": { "summaryPlan": { "enabled": True } },
-         "artifactPlan": { "recordingEnabled": True, "transcriptPlan": { "enabled": True } },
-         "model": {
-             "provider": "openai",
-             "model": "gpt-4o",
-             "messages": [
-                 {"role": "system", "content": system_prompt}
-             ]
-         }
-    }
+    # VAPI_WEBHOOK_OVERRIDE_DISABLED: Let Vapi Dashboard settings take precedence.
+    # To fix 'Call Not Coming', we revert the override as it might be malformed or conflicting.
     
     if message:
+         # Still inject the first message if provided
+         if "assistant" not in payload:
+             payload["assistant"] = {}
          payload["assistant"]["firstMessage"] = message
+
 
     headers = {
         "Authorization": f"Bearer {vapi_private_key}",
