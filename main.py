@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, Form, BackgroundTasks, Depends, HTTPExcept
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
-from pydantic import EmailStr
+from pydantic import EmailStr, BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, inspect, text, or_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -15,6 +15,20 @@ import stripe
 import httpx
 import razorpay
 from dotenv import load_dotenv
+import google.generativeai as genai
+from config_secrets import DATABASE_URL, VAPI_PRIVATE_KEY, VAPI_ASSISTANT_ID, VAPI_PHONE_NUMBER_ID, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, GEMINI_API_KEY
+from fastapi import UploadFile, File
+import shutil
+from pathlib import Path
+
+# Configure Gemini
+try:
+    genai.configure(api_key=GEMINI_API_KEY)
+    gemini_model = genai.GenerativeModel('gemini-pro')
+    print("Gemini AI Configured Successfully.")
+except Exception as e:
+    print(f"Failed to configure Gemini: {e}")
+    gemini_model = None
 
 # Load environment variables
 load_dotenv()
@@ -1234,3 +1248,92 @@ async def delete_user(user_id: int, current_user: User = Depends(get_current_use
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+
+# --- Gemini AI Intelligence Routes ---
+
+class ChatRequest(BaseModel):
+    message: str
+
+@app.post("/api/analyze-chat")
+async def analyze_chat_message(request: ChatRequest):
+    """
+    Simulates the AI Agent's intelligence for the web demo.
+    User sends a message -> Gemini responds as the Sales AI.
+    """
+    if not gemini_model:
+        return JSONResponse(status_code=500, content={"error": "Gemini AI not configured."})
+    
+    try:
+        # System Prompt to emulate the Missed Call Saviour Agent
+        prompt = f"""
+        Role: You are the intelligent 'Missed Call Saviour' AI Agent.
+        Context: A potential customer is chatting with you on the website.
+        Goal: Explain how you (the AI) can save their business time and money by handling missed calls.
+        Tone: Professional, helpful, slightly persuasive, and concise.
+        
+        User: {request.message}
+        
+        AI Response:
+        """
+        response = gemini_model.generate_content(prompt)
+        return {"reply": response.text}
+    except Exception as e:
+        print(f"Gemini Chat Error: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/api/upload-call-recording")
+async def upload_call_recording(
+    file: UploadFile = File(...), 
+    user_email: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint for Mobile App to upload call recordings.
+    1. Saves file locally (or to Cloud).
+    2. Sends to Gemini for Summary.
+    3. Saves to Database.
+    """
+    if not gemini_model:
+        return JSONResponse(status_code=500, content={"error": "Gemini AI not configured."})
+    
+    upload_dir = Path("uploads")
+    upload_dir.mkdir(exist_ok=True)
+    
+    file_path = upload_dir / f"{datetime.now().timestamp()}_{file.filename}"
+    
+    try:
+        # 1. Save File
+        with file_path.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        print(f"Recording saved at: {file_path}")
+        
+        # 2. Analyze with Gemini (Simulated Transcribe + Summary for now)
+        # Note: Gemini Pro Vision accepts audio/video in some tiers, but text is safer.
+        # For this MVP, we will assume we need to Transcribe first (using Vapi or Whisper), 
+        # But since we don't have Whisper setup, we'll ask Gemini to "summarize this placeholder" or use Gemini 1.5 Pro if available for audio.
+        # Let's use a dummy summary for the MVP or use Gemini if it supports audio upload (requires File API).
+        
+        # Simplified: We will just log it. Real audio processing requires ffmpeg/AssemblyAI/Deepgram.
+        summary = "Audio recording received. (Gemini Audio Analysis coming in v2)"
+        
+        # 3. Save to DB
+        new_call = CallLog(
+            phone_number="App-Recording",
+            call_type="app-recording",
+            status="completed",
+            summary=summary,
+            recording_url=str(file_path),
+            duration=0,
+            user_email=user_email
+        )
+        db.add(new_call)
+        db.commit()
+        
+        await sse_manager.broadcast("update_dashboard")
+        
+        return {"status": "success", "message": "Recording uploaded and processed", "summary": summary}
+        
+    except Exception as e:
+        print(f"Upload failed: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})

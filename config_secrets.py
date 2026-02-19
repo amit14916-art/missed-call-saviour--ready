@@ -12,3 +12,6 @@ VAPI_PHONE_NUMBER_ID = "c7394be1-2357-4e8b-a891-30029f071f55"
 # Razorpay Keys (Live)
 RAZORPAY_KEY_ID = "rzp_live_SHIHekjovSvcCU"
 RAZORPAY_KEY_SECRET = "tjemjJE04zEUjV1ez8hyOOIY"
+
+# Google Gemini API Key
+GEMINI_API_KEY = "AIzaSyAkBvDROxfD1dVi4DoKiBYsVD4qc9qDPNE"
