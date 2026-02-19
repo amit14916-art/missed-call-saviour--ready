@@ -1386,7 +1386,7 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
     Instructions: Use the Relevant Past Knowledge if it helps answer accurately.
     """
 
-    models_to_try = ["gemini-2.0-flash", "gemini-1.5-pro-latest", "gemini-1.5-flash", "gemini-1.0-pro"]
+    models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro", "gemini-pro"]
     
     async with httpx.AsyncClient() as client:
         # Save current user message (Best Effort)
@@ -1409,44 +1409,48 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
                 ]
             }
             
-            try:
-                response = await client.post(url, json=payload, timeout=30.0)
-                if response.status_code == 200:
-                    data = response.json()
-                    reply = data["candidates"][0]["content"]["parts"][0]["text"]
+            # Retry logic for Rate Limits
+            for attempt in range(3):
+                try:
+                    response = await client.post(url, json=payload, timeout=30.0)
                     
-                    # 3. Save AI Reply to DB and KnowledgeBase (RAG)
-                    try:
-                        ai_msg = ChatMessage(session_id=request.session_id, role="model", content=reply)
-                        db.add(ai_msg)
+                    if response.status_code == 200:
+                        data = response.json()
+                        reply = data["candidates"][0]["content"]["parts"][0]["text"]
                         
-                        # Save to KnowledgeBase for future RAG (only if embedding worked)
-                        if current_emb:
-                            new_kb = KnowledgeBase(
-                                question=request.message,
-                                answer=reply,
-                                embedding=json.dumps(current_emb)
-                            )
-                            db.add(new_kb)
+                        # Save AI Reply
+                        try:
+                            ai_msg = ChatMessage(session_id=request.session_id, role="model", content=reply)
+                            db.add(ai_msg)
+                            if current_emb:
+                                new_kb = KnowledgeBase(question=request.message, answer=reply, embedding=json.dumps(current_emb))
+                                db.add(new_kb)
+                            db.commit()
+                        except Exception as db_write_e:
+                            print(f"DB Write Error: {db_write_e}")
+                            db.rollback()
+                            
+                        return {"reply": reply}
+                    
+                    elif response.status_code == 429:
+                        print(f"Gemini 429 (Rate Limit) on {model}, attempt {attempt+1}/3. Retrying in 2s...")
+                        await asyncio.sleep(2)
+                        continue
                         
-                        db.commit()
-                    except Exception as db_write_e:
-                        print(f"DB Write Error: {db_write_e}")
-                        db.rollback()
+                    elif response.status_code == 404:
+                        print(f"Gemini 404 (Not Found) for {model}. Skipping.")
+                        break # Break retry loop, try next model
                         
-                    return {"reply": reply}
-                elif response.status_code == 429:
-                    print(f"Gemini Rate Limit (429) for {model}")
-                    continue # Try next model
-                elif response.status_code == 404:
-                    print(f"Gemini Model Not Found (404): {model}. Check if valid in current region.")
-                    continue
-                else:
-                    print(f"Model {model} failed ({response.status_code}): {response.text}")
-            except Exception as e:
-                print(f"Alex RAG Error Details: {e}", flush=True)
-                
-    return JSONResponse(status_code=500, content={"error": "Alex is feeling a bit overwhelmed (Network/API Issue)."})
+                    else:
+                        print(f"Gemini Error {response.status_code} on {model}: {response.text}")
+                        break # Break retry loop, try next model
+                        
+                except Exception as e:
+                    print(f"Connection Error on {model}: {e}")
+                    break # Break retry loop, try next model
+
+    # Final Fallback if all models fail
+    return {"reply": "I'm experiencing heavy traffic right now and couldn't process your request. Please try again in 10 seconds."}
 
 @app.post("/api/upload-call-recording")
 async def upload_call_recording(
