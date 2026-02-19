@@ -1257,32 +1257,51 @@ class ChatRequest(BaseModel):
 @app.post("/api/analyze-chat")
 async def analyze_chat_message(request: ChatRequest):
     """
-    Simulates the AI Agent's intelligence for the web demo.
-    User sends a message -> Gemini responds as the Sales AI.
+    Simulates the AI Agent's intelligence using direct REST API (bypassing gRPC issues).
     """
-    if not gemini_model:
-        print("Gemini Model not initialized.")
-        return JSONResponse(status_code=500, content={"error": "Gemini AI not configured."})
+    api_key = GEMINI_API_KEY.strip()
+    if not api_key:
+        return JSONResponse(status_code=500, content={"error": "Gemini API Key missing."})
     
-    try:
-        # System Prompt to emulate the Missed Call Saviour Agent
-        prompt = f"""
-        Role: You are the intelligent 'Missed Call Saviour' AI Agent.
-        Context: A potential customer is chatting with you on the website.
-        Goal: Explain how you (the AI) can save their business time and money by handling missed calls.
-        Tone: Professional, helpful, slightly persuasive, and concise.
-        
-        User: {request.message}
-        
-        AI Response:
-        """
-        response = await gemini_model.generate_content_async(prompt)
-        return {"reply": response.text}
-    except Exception as e:
-        print(f"Gemini Chat Error: {e}")
-        import traceback
-        traceback.print_exc()
-        return JSONResponse(status_code=500, content={"error": str(e)})
+    # Try gemini-1.5-flash first (faster), then gemini-pro
+    models_to_try = ["gemini-1.5-flash", "gemini-pro"]
+    
+    async with httpx.AsyncClient() as client:
+        for model in models_to_try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            payload = {
+                "contents": [{
+                    "parts": [{
+                        "text": f"""
+                            Role: You are the intelligent 'Missed Call Saviour' AI Agent.
+                            Context: A potential customer is chatting with you on the website.
+                            Goal: Explain how you (the AI) can save their business time and money by handling missed calls.
+                            Tone: Professional, helpful, slightly persuasive, and concise.
+                            User: {request.message}
+                            AI Response:
+                        """
+                    }]
+                }]
+            }
+            
+            try:
+                response = await client.post(url, json=payload, timeout=10.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    # Extract text: candidates[0].content.parts[0].text
+                    try:
+                        reply = data["candidates"][0]["content"]["parts"][0]["text"]
+                        return {"reply": reply}
+                    except (KeyError, IndexError):
+                         # Safety/Block response
+                         return {"reply": "I am unable to answer that."}
+                else:
+                    print(f"Model {model} failed: {response.text}")
+                    # Continue to next model
+            except Exception as e:
+                print(f"HTTP Request failed for {model}: {e}")
+                
+    return JSONResponse(status_code=500, content={"error": "AI Service Unavailable (All models failed)."})
 
 @app.post("/api/upload-call-recording")
 async def upload_call_recording(
@@ -1290,34 +1309,14 @@ async def upload_call_recording(
     user_email: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    """
-    Endpoint for Mobile App to upload call recordings.
-    1. Saves file locally (or to Cloud).
-    2. Sends to Gemini for Summary.
-    3. Saves to Database.
-    """
-    if not gemini_model:
-        return JSONResponse(status_code=500, content={"error": "Gemini AI not configured."})
-    
     upload_dir = Path("uploads")
     upload_dir.mkdir(exist_ok=True)
-    
     file_path = upload_dir / f"{datetime.now().timestamp()}_{file.filename}"
     
     try:
-        # 1. Save File
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
-        print(f"Recording saved at: {file_path}")
-        
-        # 2. Analyze with Gemini (Simulated Transcribe + Summary for now)
-        # Note: Gemini Pro Vision accepts audio/video in some tiers, but text is safer.
-        # For this MVP, we will assume we need to Transcribe first (using Vapi or Whisper), 
-        # But since we don't have Whisper setup, we'll ask Gemini to "summarize this placeholder" or use Gemini 1.5 Pro if available for audio.
-        # Let's use a dummy summary for the MVP or use Gemini if it supports audio upload (requires File API).
-        
-        # Simplified: We will just log it. Real audio processing requires ffmpeg/AssemblyAI/Deepgram.
         summary = "Audio recording received. (Gemini Audio Analysis coming in v2)"
         
         # 3. Save to DB
@@ -1334,8 +1333,7 @@ async def upload_call_recording(
         db.commit()
         
         await sse_manager.broadcast("update_dashboard")
-        
-        return {"status": "success", "message": "Recording uploaded and processed", "summary": summary}
+        return {"status": "success", "message": "Recording uploaded", "summary": summary}
         
     except Exception as e:
         print(f"Upload failed: {e}")
