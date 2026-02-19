@@ -13,5 +13,5 @@ VAPI_PHONE_NUMBER_ID = "c7394be1-2357-4e8b-a891-30029f071f55"
 RAZORPAY_KEY_ID = "rzp_live_SHIHekjovSvcCU"
 RAZORPAY_KEY_SECRET = "tjemjJE04zEUjV1ez8hyOOIY"
 
-# Google Gemini API Key
-GEMINI_API_KEY = "AIzaSyAKARu0-qq_8rW_Eij1BvNCvh0NvDZE8TY"
+# Google Gemini API Key (Loaded from environment variables in main.py)
+GEMINI_API_KEY = "" # Set in Railway/Local Env
