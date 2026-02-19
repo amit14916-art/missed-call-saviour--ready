@@ -771,7 +771,10 @@
             }
         }
 
-        // Chat Logic
+        // Chat Logic with Memory
+        const session_id = localStorage.getItem('chat_session_id') || 'sess_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('chat_session_id', session_id);
+
         async function sendChatMessage() {
             const input = document.getElementById('chatInput');
             const msg = input.value.trim();
@@ -782,19 +785,20 @@
             input.value = '';
 
             // Loading Indicator
-            const loadingId = addMessage('ai', 'Thinking...');
+            const loadingId = addMessage('ai', 'Alex is thinking...');
 
             try {
                 const response = await fetch('/api/analyze-chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: msg })
+                    body: JSON.stringify({ message: msg, session_id: session_id })
                 });
 
                 const data = await response.json();
 
                 // Remove Loading
-                document.getElementById(loadingId).remove();
+                const loadingEl = document.getElementById(loadingId);
+                if (loadingEl) loadingEl.remove();
 
                 if (data.reply) {
                     addMessage('ai', data.reply);
@@ -803,7 +807,8 @@
                 }
             } catch (err) {
                 console.error(err);
-                document.getElementById(loadingId).innerText = "Connection Failed.";
+                const loadingEl = document.getElementById(loadingId);
+                if (loadingEl) loadingEl.innerText = "Connection Failed.";
             }
         }
 

@@ -160,6 +160,14 @@ class CallLog(Base):
     duration = Column(Integer, default=0) 
     timestamp = Column(DateTime, default=datetime.utcnow)
 
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, index=True) # Unique ID for each website visitor
+    role = Column(String) # 'user' or 'model'
+    content = Column(String)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
 # Table creation moved to startup_event
 
 # ... (rest of code)
@@ -1253,47 +1261,75 @@ if __name__ == "__main__":
 
 class ChatRequest(BaseModel):
     message: str
+    session_id: str = "default"
+
+@app.post("/api/vapi-knowledge")
+async def vapi_knowledge_retrieval(payload: dict = Body(...), db: Session = Depends(get_db)):
+    """
+    Experimental: Allows Vapi to query Alex's web chat memory via tool call or assistant context.
+    Identifies user by phone number.
+    """
+    customer_phone = payload.get("message", {}).get("call", {}).get("customer", {}).get("number")
+    
+    if not customer_phone:
+        return {"context": "No previous history found for this number."}
+        
+    # Find messages linked to this phone (requires session <-> phone mapping)
+    # For now, let's look for any user who registered with this phone
+    user = db.query(User).filter(User.phone_number == customer_phone).first()
+    if user:
+        # In a real app, you'd map session_id to user.email
+        # We can search for the last few interactions for this user's email if stored
+        return {"context": f"This user is a {user.plan} plan member. They joined on {user.registration_date.date()}."}
+
+    return {"context": "New lead detected. Be helpful and charismatic."}
 
 @app.post("/api/analyze-chat")
-async def analyze_chat_message(request: ChatRequest):
+async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_db)):
     """
-    Simulates the AI Agent's intelligence using direct REST API (bypassing gRPC issues).
+    Alex's intelligence with persistent memory across conversation.
     """
-    # Prefer Environment Variable to prevent leaks, fallback to hardcoded
     api_key = os.getenv("GEMINI_API_KEY", GEMINI_API_KEY).strip()
     if not api_key:
-        print("CRITICAL: Gemini API Key is missing!")
         return JSONResponse(status_code=500, content={"error": "Gemini API Key missing."})
     
-    # Log masked key for debugging
-    masked_key = f"{api_key[:5]}...{api_key[-5:]}" if len(api_key) > 10 else "invalid-length"
-    print(f"DEBUG: Using Gemini Key {masked_key}")
-
-    # Broad model list for 2026 availability
-    models_to_try = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash"]
+    # 1. Fetch History (Last 10 messages)
+    history = db.query(ChatMessage).filter(ChatMessage.session_id == request.session_id)\
+                .order_by(ChatMessage.timestamp.desc()).limit(11).all()
+    history.reverse() # Oldest first for Gemini
     
+    # 2. Format History for Gemini
+    gemini_history = []
+    for msg in history:
+        role = "user" if msg.role == "user" else "model"
+        gemini_history.append({"role": role, "parts": [{"text": msg.content}]})
+
     # Advanced System Prompt for Alex
     system_persona = """
-    Role: You are 'Alex', the senior AI lead at 'Missed Call Saviour'.
-    Personality: Charismatic, super-intelligent, helpful, and slightly witty. You aren't just a bot; you are a partner in helping the user grow their business.
-    Core Product: An AI agent that answers missed business calls, handles FAQs, and books appointments instantly via SMS/Voice.
-
-    Guidelines:
-    - ALWAYS introduce yourself as Alex if asked.
-    - Tone: Friendly but highly professional. Use short, punchy sentences.
-    - Insight: Mention that every missed call is a 'leaking bucket' for their revenue ($50-$500 per lead).
-    - Closing: Encourage the user to calculate their actual loss using the ROI Calculator on this page.
+    Role: You are 'Alex', the senior AI lead at 'Missed Call Saviour'. 
+    Personality: Charismatic, super-intelligent, helpful. You remember the user's previous questions correctly.
+    Context: You are talking to a business owner on the website.
     """
 
+    models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash"]
+    
     async with httpx.AsyncClient() as client:
+        # Save current user message
+        user_msg = ChatMessage(session_id=request.session_id, role="user", content=request.message)
+        db.add(user_msg)
+        db.commit()
+
         for model in models_to_try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            
+            # Payload with Chat History
             payload = {
-                "contents": [{
-                    "parts": [{
-                        "text": f"{system_persona}\n\nUser Message: {request.message}\nAI Response:"
-                    }]
-                }]
+                "contents": [
+                    {"role": "user", "parts": [{"text": system_persona}]},
+                    {"role": "model", "parts": [{"text": "Understood. I am Alex, how can I help you today?"}]},
+                    *gemini_history,
+                    {"role": "user", "parts": [{"text": request.message}]}
+                ]
             }
             
             try:
@@ -1301,20 +1337,19 @@ async def analyze_chat_message(request: ChatRequest):
                 if response.status_code == 200:
                     data = response.json()
                     reply = data["candidates"][0]["content"]["parts"][0]["text"]
+                    
+                    # 3. Save AI Reply to DB
+                    ai_msg = ChatMessage(session_id=request.session_id, role="model", content=reply)
+                    db.add(ai_msg)
+                    db.commit()
+                    
                     return {"reply": reply}
-                elif response.status_code == 400:
-                    error_data = response.json()
-                    error_msg = error_data.get("error", {}).get("message", "Bad Request")
-                    print(f"DEBUG: Model {model} failed (400): {error_msg}")
-                    # If key expired, we stop trying other models
-                    if "expired" in error_msg.lower():
-                        return JSONResponse(status_code=400, content={"error": f"API Key Error: {error_msg}"})
                 else:
                     print(f"DEBUG: Model {model} failed ({response.status_code}): {response.text}")
             except Exception as e:
-                print(f"EXCEPTION during Gemini call for {model}: {e}")
+                print(f"EXCEPTION during Alex call: {e}")
                 
-    return JSONResponse(status_code=500, content={"error": "AI Service Unavailable. Check server logs."})
+    return JSONResponse(status_code=500, content={"error": "Alex is temporarily sleeping. Try again later."})
 
 @app.post("/api/upload-call-recording")
 async def upload_call_recording(
