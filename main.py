@@ -301,6 +301,18 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None, user_email
     Triggers an outbound call using Vapi.ai API
     """
     vapi_url = "https://api.vapi.ai/call"
+    
+    # 1. Sanitize Phone Number
+    if not phone.startswith("+"):
+         clean_phone = phone.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+         # Assume India (+91) if 10 digits
+         if len(clean_phone) == 10:
+             phone = f"+91{clean_phone}"
+         else:
+             phone = f"+{clean_phone}"
+    
+    print(f"Triggering Vapi call to {phone}")
+    
     # Vapi Call
     vapi_private_key = VAPI_PRIVATE_KEY
     vapi_assistant_id = VAPI_ASSISTANT_ID
@@ -359,6 +371,7 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None, user_email
     """
 
     payload["assistant"] = {
+          # Use local override for webhook to catch events (even if Vapi Dashboard is empty)
          "serverUrl": webhook_url,
          "analysisPlan": { "summaryPlan": { "enabled": True } },
          "artifactPlan": { "recordingEnabled": True, "transcriptPlan": { "enabled": True } },
