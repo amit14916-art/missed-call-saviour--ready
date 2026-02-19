@@ -23,9 +23,9 @@ from pathlib import Path
 
 # Configure Gemini
 try:
-    genai.configure(api_key=GEMINI_API_KEY)
-    gemini_model = genai.GenerativeModel('gemini-pro')
-    print("Gemini AI Configured Successfully.")
+    genai.configure(api_key=GEMINI_API_KEY.strip())
+    gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+    print("Gemini AI Configured Successfully (gemini-1.5-flash).")
 except Exception as e:
     print(f"Failed to configure Gemini: {e}")
     gemini_model = None
@@ -1261,6 +1261,7 @@ async def analyze_chat_message(request: ChatRequest):
     User sends a message -> Gemini responds as the Sales AI.
     """
     if not gemini_model:
+        print("Gemini Model not initialized.")
         return JSONResponse(status_code=500, content={"error": "Gemini AI not configured."})
     
     try:
@@ -1275,10 +1276,12 @@ async def analyze_chat_message(request: ChatRequest):
         
         AI Response:
         """
-        response = gemini_model.generate_content(prompt)
+        response = await gemini_model.generate_content_async(prompt)
         return {"reply": response.text}
     except Exception as e:
         print(f"Gemini Chat Error: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/api/upload-call-recording")
