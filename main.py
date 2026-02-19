@@ -1334,28 +1334,43 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
     if not api_key:
         return JSONResponse(status_code=500, content={"error": "Gemini API Key missing."})
     
-    # 1. RAG: Fetch relevant knowledge
-    current_emb = await get_embedding(request.message, api_key)
+    # 1. RAG: Fetch relevant knowledge (Fail-safe)
+    current_emb = None
     rag_context = ""
-    
-    if current_emb:
-        kb_items = db.query(KnowledgeBase).all()
-        scored_items = []
-        for item in kb_items:
-            try:
-                item_emb = json.loads(item.embedding)
-                score = cosine_similarity(current_emb, item_emb)
-                if score > 0.85: # High similarity threshold
-                    scored_items.append(f"Q: {item.question}\nA: {item.answer}")
-            except: continue
+    try:
+        current_emb = await get_embedding(request.message, api_key)
         
-        if scored_items:
-            rag_context = "\nRelevant Past Knowledge:\n" + "\n---\n".join(scored_items[:3])
+        if current_emb:
+            # Safe DB query for KnowledgeBase
+            try:
+                kb_items = db.query(KnowledgeBase).all()
+                scored_items = []
+                for item in kb_items:
+                    try:
+                        item_emb = json.loads(item.embedding)
+                        score = cosine_similarity(current_emb, item_emb)
+                        if score > 0.85: 
+                            scored_items.append(f"Q: {item.question}\nA: {item.answer}")
+                    except: continue
+                
+                if scored_items:
+                    rag_context = "\nRelevant Past Knowledge:\n" + "\n---\n".join(scored_items[:3])
+            except Exception as db_e:
+                print(f"RAG DB Read Error: {db_e}")
+                # Continue without RAG context
+                
+    except Exception as emb_e:
+         print(f"Embedding API Error: {emb_e}")
+         # Continue without RAG
 
     # 2. Fetch Chat History (Memory)
-    history = db.query(ChatMessage).filter(ChatMessage.session_id == request.session_id)\
-                .order_by(ChatMessage.timestamp.desc()).limit(8).all()
-    history.reverse()
+    try:
+        history = db.query(ChatMessage).filter(ChatMessage.session_id == request.session_id)\
+                    .order_by(ChatMessage.timestamp.desc()).limit(8).all()
+        history.reverse()
+    except Exception as e:
+        print(f"Chat History Read Error: {e}")
+        history = []
     
     gemini_history = []
     for msg in history:
@@ -1364,7 +1379,8 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
 
     # Advanced System Prompt with RAG
     system_persona = f"""
-    Role: You are 'Alex'. You have access to a Knowledge Base and previous conversation memory.
+    Role: You are 'Alex', the senior AI lead at 'Missed Call Saviour'. 
+    Personality: Charismatic, super-intelligent, helpful.
     {rag_context}
     
     Instructions: Use the Relevant Past Knowledge if it helps answer accurately.
@@ -1373,13 +1389,17 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
     models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash"]
     
     async with httpx.AsyncClient() as client:
-        # Save current user message
-        user_msg = ChatMessage(session_id=request.session_id, role="user", content=request.message)
-        db.add(user_msg)
-        db.commit()
+        # Save current user message (Best Effort)
+        try:
+            user_msg = ChatMessage(session_id=request.session_id, role="user", content=request.message)
+            db.add(user_msg)
+            db.commit()
+        except: 
+            db.rollback()
 
         for model in models_to_try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            
             payload = {
                 "contents": [
                     {"role": "user", "parts": [{"text": system_persona}]},
@@ -1396,26 +1416,34 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
                     reply = data["candidates"][0]["content"]["parts"][0]["text"]
                     
                     # 3. Save AI Reply to DB and KnowledgeBase (RAG)
-                    ai_msg = ChatMessage(session_id=request.session_id, role="model", content=reply)
-                    db.add(ai_msg)
-                    
-                    # Save to KnowledgeBase for future RAG
-                    if current_emb:
-                        new_kb = KnowledgeBase(
-                            question=request.message,
-                            answer=reply,
-                            embedding=json.dumps(current_emb)
-                        )
-                        db.add(new_kb)
-                    
-                    db.commit()
+                    try:
+                        ai_msg = ChatMessage(session_id=request.session_id, role="model", content=reply)
+                        db.add(ai_msg)
+                        
+                        # Save to KnowledgeBase for future RAG (only if embedding worked)
+                        if current_emb:
+                            new_kb = KnowledgeBase(
+                                question=request.message,
+                                answer=reply,
+                                embedding=json.dumps(current_emb)
+                            )
+                            db.add(new_kb)
+                        
+                        db.commit()
+                    except Exception as db_write_e:
+                        print(f"DB Write Error: {db_write_e}")
+                        db.rollback()
+                        
                     return {"reply": reply}
+                elif response.status_code == 429:
+                    print(f"Gemini Rate Limit (429) for {model}")
+                    continue # Try next model
+                else:
+                    print(f"Model {model} failed ({response.status_code})")
             except Exception as e:
-                print(f"Alex RAG Error Details: {e}", flush=True) # Explicitly log error
-                # return JSONResponse(status_code=500, content={"error": f"Error: {str(e)}"}) # Returning generic for now to not break UI if user faces it, checking logs is better
-                return JSONResponse(status_code=500, content={"error": f"Internal Error: {str(e)}"}) # Okay show it to user for debugging
+                print(f"Alex RAG Error Details: {e}", flush=True)
                 
-    return JSONResponse(status_code=500, content={"error": "Alex is feeling a bit overwhelmed (Model unavailable)."})
+    return JSONResponse(status_code=500, content={"error": "Alex is feeling a bit overwhelmed (Network/API Issue)."})
 
 @app.post("/api/upload-call-recording")
 async def upload_call_recording(
