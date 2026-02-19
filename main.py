@@ -302,21 +302,14 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None, user_email
     """
     vapi_url = "https://api.vapi.ai/call"
     
-    # 1. Sanitize Phone Number
-    if not phone.startswith("+"):
-         clean_phone = phone.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
-         # Assume India (+91) if 10 digits
-         if len(clean_phone) == 10:
-             phone = f"+91{clean_phone}"
-         else:
-             phone = f"+{clean_phone}"
-    
-    print(f"Triggering Vapi call to {phone}")
+    # Sanitization is done upstream in send_demo_call
+    print(f"Triggering Vapi call to {phone} (user={user_email})")
     
     # Vapi Call
     vapi_private_key = VAPI_PRIVATE_KEY
     vapi_assistant_id = VAPI_ASSISTANT_ID
     vapi_phone_number_id = VAPI_PHONE_NUMBER_ID
+
     
     if not vapi_private_key or not vapi_assistant_id:
         print("Skipping Vapi call (not configured): Missing VAPI_PRIVATE_KEY or VAPI_ASSISTANT_ID")
@@ -332,10 +325,9 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None, user_email
         "number": phone
       },
       "phoneNumberId": vapi_phone_number_id,
-      "metadata": {
-          "user_email": user_email
-      },
-
+      # "metadata": { "user_email": ... }  <-- Removed to reduce complexity/failure risk.
+      # User assignment now relies on send_demo_call DB logging + phone matching.
+    }
     }
     
     # Only override serverUrl (webhook) to ensure we capture logs
@@ -512,7 +504,19 @@ async def send_demo_call(
 ):
     print(f"Received demo Call request for: {phone} from {current_user.email}")
     
+    # 0. Sanitize Phone Number (to ensure match with CallLog)
+    if not phone.startswith("+"):
+         clean_phone = phone.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+         # Assume India (+91) if 10 digits
+         if len(clean_phone) == 10:
+             phone = f"+91{clean_phone}"
+         else:
+             phone = f"+{clean_phone}"
+    
+    print(f"Normalized Phone: {phone}")
+    
     # 1. Log the call immediately
+
     try:
         new_call = CallLog(
             phone_number=phone,
