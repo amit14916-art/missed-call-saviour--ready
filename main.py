@@ -1263,8 +1263,8 @@ async def analyze_chat_message(request: ChatRequest):
     if not api_key:
         return JSONResponse(status_code=500, content={"error": "Gemini API Key missing."})
     
-    # Try gemini-1.5-flash first (faster), then gemini-pro
-    models_to_try = ["gemini-1.5-flash", "gemini-pro"]
+    # Use latest available Gemini models (old ones are retired)
+    models_to_try = ["gemini-2.0-flash", "gemini-2.5-flash"]
     
     async with httpx.AsyncClient() as client:
         for model in models_to_try:
