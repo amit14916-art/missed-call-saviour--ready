@@ -1386,7 +1386,7 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
     Instructions: Use the Relevant Past Knowledge if it helps answer accurately.
     """
 
-    models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash"]
+    models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
     
     async with httpx.AsyncClient() as client:
         # Save current user message (Best Effort)
@@ -1438,8 +1438,11 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
                 elif response.status_code == 429:
                     print(f"Gemini Rate Limit (429) for {model}")
                     continue # Try next model
+                elif response.status_code == 404:
+                    print(f"Gemini Model Not Found (404): {model}. Check if valid in current region.")
+                    continue
                 else:
-                    print(f"Model {model} failed ({response.status_code})")
+                    print(f"Model {model} failed ({response.status_code}): {response.text}")
             except Exception as e:
                 print(f"Alex RAG Error Details: {e}", flush=True)
                 
