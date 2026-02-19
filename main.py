@@ -1446,11 +1446,16 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
                         break # Break retry loop, try next model
                         
                 except Exception as e:
+                    last_error = f"{model} Error: {str(e)}"
                     print(f"Connection Error on {model}: {e}")
-                    break # Break retry loop, try next model
+                    # If it's an auth error, break immediately
+                    if "403" in str(e) or "API key" in str(e) or "401" in str(e):
+                         last_error = "API Key Invalid/Expired"
+                         break
+                    continue # Break retry loop, try next model
 
     # Final Fallback if all models fail
-    return {"reply": "I'm experiencing heavy traffic right now and couldn't process your request. Please try again in 10 seconds."}
+    return {"reply": f"System Alert: I couldn't process your request. Reason: {last_error}. Please check your API Key configuration."}
 
 @app.post("/api/upload-call-recording")
 async def upload_call_recording(
