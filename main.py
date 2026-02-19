@@ -21,11 +21,12 @@ from fastapi import UploadFile, File
 import shutil
 from pathlib import Path
 
-# Configure Gemini
+# Configure Gemini (Prefer Environment Variable)
 try:
-    genai.configure(api_key=GEMINI_API_KEY.strip())
+    FINAL_GEMINI_KEY = os.getenv("GEMINI_API_KEY", GEMINI_API_KEY).strip()
+    genai.configure(api_key=FINAL_GEMINI_KEY)
     gemini_model = genai.GenerativeModel('gemini-pro')
-    print("Gemini AI Configured Successfully (gemini-pro).")
+    print("Gemini AI Configured Successfully.")
 except Exception as e:
     print(f"Failed to configure Gemini: {e}")
     gemini_model = None
