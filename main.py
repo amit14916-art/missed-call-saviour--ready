@@ -1262,25 +1262,24 @@ async def analyze_chat_message(request: ChatRequest):
     # Prefer Environment Variable to prevent leaks, fallback to hardcoded
     api_key = os.getenv("GEMINI_API_KEY", GEMINI_API_KEY).strip()
     if not api_key:
+        print("CRITICAL: Gemini API Key is missing!")
         return JSONResponse(status_code=500, content={"error": "Gemini API Key missing."})
     
-    # Try multiple models for maximum compatibility
-    models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"]
+    # Log masked key for debugging
+    masked_key = f"{api_key[:5]}...{api_key[-5:]}" if len(api_key) > 10 else "invalid-length"
+    print(f"DEBUG: Using Gemini Key {masked_key}")
+
+    # Broad model list for 2026 availability
+    models_to_try = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash"]
     
     async with httpx.AsyncClient() as client:
         for model in models_to_try:
+            # Use v1beta for newest models
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
             payload = {
                 "contents": [{
                     "parts": [{
-                        "text": f"""
-                            Role: You are the intelligent 'Missed Call Saviour' AI Agent.
-                            Context: A potential customer is chatting with you on the website.
-                            Goal: Explain how you (the AI) can save their business time and money by handling missed calls.
-                            Tone: Professional, helpful, slightly persuasive, and concise.
-                            User: {request.message}
-                            AI Response:
-                        """
+                        "text": f"Role: You are the intelligent 'Missed Call Saviour' AI Agent. User Message: {request.message}"
                     }]
                 }]
             }
@@ -1289,20 +1288,21 @@ async def analyze_chat_message(request: ChatRequest):
                 response = await client.post(url, json=payload, timeout=30.0)
                 if response.status_code == 200:
                     data = response.json()
-                    # Extract text: candidates[0].content.parts[0].text
-                    try:
-                        reply = data["candidates"][0]["content"]["parts"][0]["text"]
-                        return {"reply": reply}
-                    except (KeyError, IndexError):
-                         # Safety/Block response
-                         return {"reply": "I am unable to answer that."}
+                    reply = data["candidates"][0]["content"]["parts"][0]["text"]
+                    return {"reply": reply}
+                elif response.status_code == 400:
+                    error_data = response.json()
+                    error_msg = error_data.get("error", {}).get("message", "Bad Request")
+                    print(f"DEBUG: Model {model} failed (400): {error_msg}")
+                    # If key expired, we stop trying other models
+                    if "expired" in error_msg.lower():
+                        return JSONResponse(status_code=400, content={"error": f"API Key Error: {error_msg}"})
                 else:
-                    print(f"Model {model} failed: {response.text}")
-                    # Continue to next model
+                    print(f"DEBUG: Model {model} failed ({response.status_code}): {response.text}")
             except Exception as e:
-                print(f"HTTP Request failed for {model}: {e}")
+                print(f"EXCEPTION during Gemini call for {model}: {e}")
                 
-    return JSONResponse(status_code=500, content={"error": "AI Service Unavailable (All models failed)."})
+    return JSONResponse(status_code=500, content={"error": "AI Service Unavailable. Check server logs."})
 
 @app.post("/api/upload-call-recording")
 async def upload_call_recording(
