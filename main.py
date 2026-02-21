@@ -1475,7 +1475,7 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
     """
     api_key = os.getenv("GEMINI_API_KEY", GEMINI_API_KEY).strip()
     if not api_key:
-        return JSONResponse(status_code=500, content={"error": "Gemini API Key missing."})
+        return {"error": "Gemini API Key missing. Please set GEMINI_API_KEY in Railway environment variables."}
     
     # 1. RAG: Fetch relevant knowledge (Fail-safe)
     current_emb = None
@@ -1538,7 +1538,8 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
             user_msg = ChatMessage(session_id=request.session_id, role="user", content=request.message)
             db.add(user_msg)
             db.commit()
-        except: 
+        except Exception as db_e: 
+            print(f"Chat DB Error: {db_e}")
             db.rollback()
 
         for model in models_to_try:

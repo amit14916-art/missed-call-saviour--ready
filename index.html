@@ -978,7 +978,8 @@
                 if (data.reply) {
                     addMessage('ai', data.reply);
                 } else {
-                    addMessage('ai', 'Error: ' + (data.error || 'Unknown error'));
+                    const errorMsg = data.error || data.detail || 'Unknown error';
+                    addMessage('ai', 'Error: ' + errorMsg);
                 }
             } catch (err) {
                 console.error(err);
