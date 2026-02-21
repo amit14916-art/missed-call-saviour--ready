@@ -137,6 +137,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/api/debug-status")
+async def get_debug_status():
+    api_key = os.getenv("GEMINI_API_KEY", GEMINI_API_KEY).strip()
+    return {
+        "gemini_key_present": bool(api_key),
+        "gemini_key_suffix": f"***{api_key[-4:]}" if api_key else "NONE",
+        "database_connected": "True",
+        "version": "1.3.0"
+    }
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -1550,9 +1560,10 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
                     
                     return {"reply": reply}
                 else:
-                    last_error = f"API Error {resp.status_code}: {resp.text[:100]}"
+                    error_text = resp.text or f"HTTP {resp.status_code}"
+                    last_error = f"Gemini API Error: {error_text}"
             except Exception as e:
-                last_error = str(e)
+                last_error = f"Connection error: {str(e)}"
                 continue
 
     return JSONResponse(status_code=500, content={"error": f"Alex is offline. Reason: {last_error}"})
