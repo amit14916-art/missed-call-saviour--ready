@@ -1569,19 +1569,18 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
         # PROVIDER 2: GROQ FALLBACK (If Gemini Fails)
         groq_key = os.getenv("GROQ_API_KEY", "").strip()
         if groq_key:
-            print("ALEX_LOG: Gemini failed. Falling back to Groq (Llama-3)...")
-            groq_models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"]
+            print("ALEX_LOG: Falling back to Groq (Llama-3)...")
+            groq_models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
             for g_model in groq_models:
                 try:
                     groq_url = "https://api.groq.com/openai/v1/chat/completions"
                     headers = {"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"}
-                    # Convert Gemini contents to OpenAI format
-                    groq_messages = [{"role": m["role"], "content": m["parts"][0]["text"]} for m in contents]
+                    # IMPORTANT: Convert 'model' role to 'assistant' for Groq/OpenAI compatibility
+                    groq_messages = [{"role": ("assistant" if m["role"] == "model" else m["role"]), 
+                                     "content": m["parts"][0]["text"]} for m in contents]
                     
                     resp = await client.post(groq_url, headers=headers, json={
-                        "model": g_model,
-                        "messages": groq_messages,
-                        "temperature": 0.7
+                        "model": g_model, "messages": groq_messages, "temperature": 0.7
                     }, timeout=20.0)
                     
                     if resp.status_code == 200:
@@ -1591,25 +1590,29 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
                             db.commit()
                         except: db.rollback()
                         return {"reply": f"[Groq-Powered] {reply}"}
+                    else:
+                        print(f"ALEX_LOG: Groq {g_model} failed with {resp.status_code}")
                 except Exception as e:
-                    print(f"ALEX_LOG: Groq {g_model} failed: {e}")
+                    print(f"ALEX_LOG: Groq {g_model} Exception: {e}")
                     continue
+        else:
+            print("ALEX_LOG: GROQ_API_KEY missing, skipping Groq.")
 
         # PROVIDER 3: OPENAI FALLBACK (The Ultimate Backup)
         openai_key = os.getenv("OPENAI_API_KEY", "").strip()
         if openai_key:
-            print("ALEX_LOG: Gemini/Groq failed. Falling back to OpenAI (GPT)...")
+            print("ALEX_LOG: Falling back to OpenAI (GPT)...")
             oa_models = ["gpt-4o-mini", "gpt-4o"]
             for oa_model in oa_models:
                 try:
                     oa_url = "https://api.openai.com/v1/chat/completions"
                     headers = {"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"}
-                    oa_messages = [{"role": m["role"], "content": m["parts"][0]["text"]} for m in contents]
+                    # IMPORTANT: Convert 'model' role to 'assistant' for OpenAI compatibility
+                    oa_messages = [{"role": ("assistant" if m["role"] == "model" else m["role"]), 
+                                    "content": m["parts"][0]["text"]} for m in contents]
                     
                     resp = await client.post(oa_url, headers=headers, json={
-                        "model": oa_model,
-                        "messages": oa_messages,
-                        "temperature": 0.7
+                        "model": oa_model, "messages": oa_messages, "temperature": 0.7
                     }, timeout=25.0)
                     
                     if resp.status_code == 200:
@@ -1620,8 +1623,10 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
                         except: db.rollback()
                         return {"reply": f"[GPT-Powered] {reply}"}
                 except Exception as e:
-                    print(f"ALEX_LOG: OpenAI {oa_model} failed: {e}")
+                    print(f"ALEX_LOG: OpenAI {oa_model} Exception: {e}")
                     continue
+        else:
+            print("ALEX_LOG: OPENAI_API_KEY missing, skipping OpenAI.")
 
     # Final Failure Response
     return {
