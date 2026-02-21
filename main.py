@@ -1530,6 +1530,7 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
     """
 
     models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro", "gemini-pro"]
+    last_error = "Unknown Error"
     
     async with httpx.AsyncClient() as client:
         # Save current user message (Best Effort)
