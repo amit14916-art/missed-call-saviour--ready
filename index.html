@@ -112,18 +112,24 @@
 
         /* Hero */
         .hero {
-            padding: 100px 0 60px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            padding: 20px 0 60px;
             min-height: 85vh;
-            justify-content: center;
+            display: flex;
+            align-items: center;
+        }
+
+        .hero-grid {
+            display: grid;
+            grid-template-columns: 280px 1fr 300px;
+            gap: 40px;
+            width: 100%;
+            align-items: start;
         }
 
         .hero h1 {
-            font-size: 3.5rem;
+            font-size: 2.8rem;
             line-height: 1.2;
-            margin-bottom: 40px;
+            margin-bottom: 30px;
             letter-spacing: -0.02em;
             font-weight: 700;
             text-align: center;
@@ -133,11 +139,30 @@
             -webkit-text-fill-color: transparent;
         }
 
+        /* Sidebar Panels */
+        .side-panel {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 24px;
+            backdrop-filter: blur(10px);
+        }
+
+        .side-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
         /* Gemini Style Components */
         .chat-container {
             width: 100%;
-            max-width: 800px;
-            margin: 0 auto;
             display: flex;
             flex-direction: column;
             gap: 20px;
@@ -601,70 +626,112 @@
     <!-- Hero / Chat Section -->
     <header class="hero">
         <div class="hero-glow"></div>
-        <div class="container" style="width: 100%;">
-            <div id="greeting-area">
-                <h1 id="dynamic-greeting">Hello, I'm <span class="bg-gradient-text">Alex</span>.<br>How can I help you
-                    save sales?</h1>
-            </div>
+        <div class="container" style="width: 100%; max-width: 1400px;">
+            <div class="hero-grid">
 
-            <div class="chat-container">
-                <!-- Chat History Area (Initially Hidden) -->
-                <div id="chat-messages" class="chat-history" style="display: none;">
-                    <!-- Messages will appear here -->
-                </div>
+                <!-- Left Sidebar: Performance Feed -->
+                <div class="side-panel">
+                    <div class="side-title"><span>🔥</span> Live Feed</div>
+                    <div id="live-wins" style="display: flex; flex-direction: column; gap: 20px;">
+                        <div style="font-size: 0.85rem; border-left: 2px solid #00c6ff; padding-left: 14px;">
+                            <div style="color: #fff; font-weight: 600;">Dental Care Center</div>
+                            <div style="color: var(--text-muted); font-size: 0.75rem;">Recovered a $320 booking just now
+                            </div>
+                        </div>
+                        <div style="font-size: 0.85rem; border-left: 2px solid #4ade80; padding-left: 14px;">
+                            <div style="color: #fff; font-weight: 600;">Law Offices</div>
+                            <div style="color: var(--text-muted); font-size: 0.75rem;">AI qualified a High Priority lead
+                            </div>
+                        </div>
+                        <div style="font-size: 0.85rem; border-left: 2px solid #fbbf24; padding-left: 14px;">
+                            <div style="color: #fff; font-weight: 600;">Property Experts</div>
+                            <div style="color: var(--text-muted); font-size: 0.75rem;">Meeting booked at 11:45 PM</div>
+                        </div>
+                    </div>
 
-                <!-- Central Input Area -->
-                <div class="gemini-input-wrapper">
-                    <input type="text" id="chatInput" placeholder="Ask Alex anything..."
-                        onkeypress="handleChatEnter(event)">
-                    <button onclick="sendChatMessage()" class="gemini-send-btn">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <line x1="22" y1="2" x2="11" y2="13"></line>
-                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                        </svg>
-                    </button>
-                </div>
-
-                <!-- Suggestion Chips -->
-                <div class="suggestion-chips" id="suggestion-chips">
-                    <div class="chip" onclick="quickAsk('How does Missed Call Saviour work?')">
-                        <span>🤔</span> How it works?
-                    </div>
-                    <div class="chip" onclick="quickAsk('Show me the pricing plans')">
-                        <span>💰</span> Pricing Plans
-                    </div>
-                    <div class="chip" onclick="quickAsk('Can I record my own voice?')">
-                        <span>🎙️</span> Voice Cloning
-                    </div>
-                    <div class="chip" onclick="quickAsk('How do I setup call forwarding?')">
-                        <span>📲</span> Setup Guide
+                    <div
+                        style="margin-top: 40px; padding: 16px; background: rgba(255,255,255,0.03); border-radius: 16px;">
+                        <div style="font-size: 1.8rem; font-weight: 800; color: #fff; line-height: 1;">98.2%</div>
+                        <div
+                            style="font-size: 0.7rem; color: #00c6ff; text-transform: uppercase; font-weight: 700; margin-top: 4px;">
+                            Capture Rate</div>
                     </div>
                 </div>
 
-                <!-- Demo Call Toggle (Secondary) -->
-                <div style="margin-top: 40px; color: var(--text-muted); font-size: 0.9rem;">
-                    Bored of typing? <a href="#" onclick="showVoiceDemo(event)"
-                        style="color: #00c6ff; text-decoration: underline;">Test a Live Voice Call instead &rarr;</a>
-                </div>
-            </div>
+                <!-- Center: Gemini Chat Interface -->
+                <div class="main-content"
+                    style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                    <div id="greeting-area">
+                        <h1 id="dynamic-greeting">Hello, I'm <span class="bg-gradient-text">Alex</span>.<br>Let's grow
+                            your business.</h1>
+                    </div>
 
-            <!-- Voice Demo Container (Hidden by default) -->
-            <div id="demo-voice" class="live-demo glass-panel" style="display: none; margin-top: 40px;">
-                <div class="demo-interface">
-                    <h3 style="margin: 0 0 8px 0; font-size: 1.2rem;">Experience it via Phone</h3>
-                    <p style="color: var(--text-muted); font-size: 0.9rem;">Enter your number. Our AI will
-                        <strong>call</strong> you instantly.
+                    <div class="chat-container">
+                        <!-- Chat History Area -->
+                        <div id="chat-messages" class="chat-history" style="display: none; max-height: 480px;">
+                            <!-- Messages will appear here -->
+                        </div>
+
+                        <!-- Central Input Area -->
+                        <div class="gemini-input-wrapper">
+                            <input type="text" id="chatInput" placeholder="Ask Alex anything..."
+                                onkeypress="handleChatEnter(event)">
+                            <button onclick="sendChatMessage()" class="gemini-send-btn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- Suggestion Chips -->
+                        <div class="suggestion-chips" id="suggestion-chips">
+                            <div class="chip" onclick="quickAsk('How it works?')"><span>🤔</span> How it works?</div>
+                            <div class="chip" onclick="quickAsk('Show pricing')"><span>💰</span> Pricing Plans</div>
+                            <div class="chip" onclick="quickAsk('Voice Cloning')"><span>🎙️</span> Voice Cloning</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Sidebar: Live Demo Panel -->
+                <div class="side-panel"
+                    style="border-color: rgba(0, 198, 255, 0.4); background: rgba(0, 198, 255, 0.05); box-shadow: 0 0 40px rgba(0, 198, 255, 0.1);">
+                    <div class="side-title" style="color: #00c6ff;"><span>📞</span> Live AI Call Demo</div>
+                    <p style="font-size: 0.85rem; color: #e2e8f0; line-height: 1.5; margin-bottom: 24px;">
+                        Experience how I sound over the phone. Enter your number and I'll call you right now.
                     </p>
-                    <form class="demo-input-group" onsubmit="sendDemoSMS(event)"
-                        style="margin-top: 20px; max-width: 400px;">
-                        <input type="tel" id="demoPhone" placeholder="+91..." required>
+
+                    <form onsubmit="sendDemoSMS(event)" style="display: flex; flex-direction: column; gap: 14px;">
+                        <div style="position: relative;">
+                            <span
+                                style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 0.85rem;">🇮🇳</span>
+                            <input type="tel" id="demoPhone" placeholder="+91 98765..." required
+                                style="width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px 12px 12px 38px; color: white; outline: none; font-size: 0.95rem; font-family: inherit;">
+                        </div>
                         <button type="submit" class="btn-primary"
-                            style="padding: 10px 24px; border-radius: 90px; margin: 2px; font-size: 0.85rem;">Call
-                            Me</button>
+                            style="width: 100%; padding: 14px; border-radius: 12px; font-size: 0.95rem; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                            <span>📞</span> CALL ME NOW
+                        </button>
                     </form>
-                    <div id="demoStatus" class="status-msg">✓ Call Initiated!</div>
+                    <div id="demoStatus" class="status-msg"
+                        style="margin-top: 14px; text-align: center; color: #4ade80; font-weight: 500;">✓ Dialing your
+                        number...</div>
+
+                    <div
+                        style="margin-top: 32px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); padding: 16px; border-radius: 16px; font-size: 0.75rem;">
+                        <div
+                            style="color: #4ade80; margin-bottom: 6px; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+                            <span
+                                style="width: 8px; height: 8px; background: #4ade80; border-radius: 50%; display: inline-block;"></span>
+                            SERVER STATUS: READY
+                        </div>
+                        <div style="color: var(--text-muted); margin-bottom: 4px;">AI Agent: <strong>Alex
+                                v3.2.1</strong></div>
+                        <div style="color: var(--text-muted);">Voice: <strong>HD Neural (Cloned)</strong></div>
+                    </div>
                 </div>
+
             </div>
         </div>
     </header>
