@@ -1595,9 +1595,37 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
                     print(f"ALEX_LOG: Groq {g_model} failed: {e}")
                     continue
 
+        # PROVIDER 3: OPENAI FALLBACK (The Ultimate Backup)
+        openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+        if openai_key:
+            print("ALEX_LOG: Gemini/Groq failed. Falling back to OpenAI (GPT)...")
+            oa_models = ["gpt-4o-mini", "gpt-4o"]
+            for oa_model in oa_models:
+                try:
+                    oa_url = "https://api.openai.com/v1/chat/completions"
+                    headers = {"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"}
+                    oa_messages = [{"role": m["role"], "content": m["parts"][0]["text"]} for m in contents]
+                    
+                    resp = await client.post(oa_url, headers=headers, json={
+                        "model": oa_model,
+                        "messages": oa_messages,
+                        "temperature": 0.7
+                    }, timeout=25.0)
+                    
+                    if resp.status_code == 200:
+                        reply = resp.json()["choices"][0]["message"]["content"]
+                        try:
+                            db.add(ChatMessage(session_id=request.session_id, role="model", content=reply))
+                            db.commit()
+                        except: db.rollback()
+                        return {"reply": f"[GPT-Powered] {reply}"}
+                except Exception as e:
+                    print(f"ALEX_LOG: OpenAI {oa_model} failed: {e}")
+                    continue
+
     # Final Failure Response
     return {
-        "reply": f"🤖 [ALEX SCALING ALERT]: All providers are busy. \n\n**Tip:** Add a `GROQ_API_KEY` to Railway for 100% uptime fallback! 🚀"
+        "reply": "🤖 [ALEX TRIPLE-ENGINE ALERT]: All systems (Gemini, Groq, OpenAI) are currently unavailable. \n\n**Bhai simple hai:** \n1. Check kijiye ki keys valid hain ya nahi. \n2. Billing status check karein. \n3. 1 minute baad try karein! 🚀"
     }
 
 @app.post("/api/v4/nuclear-alex")
