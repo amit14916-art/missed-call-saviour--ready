@@ -1571,14 +1571,9 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
                 last_error = f"Connection error: {str(e)}"
                 continue
 
-    return JSONResponse(
-        status_code=500, 
-        content={
-            "error": "Alex is currently stuck.",
-            "detail": last_error,
-            "models_tried": models
-        }
-    )
+    return {
+        "reply": f"🤖 [SYSTEM ALERT]: I'm having trouble connecting to my brain.\n\nReason: {last_error}\n\nThis usually means the API key is invalid or your usage limit is exceeded. Please check your credentials."
+    }
 
 @app.post("/api/upload-call-recording")
 async def upload_call_recording(
