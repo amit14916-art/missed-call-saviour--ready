@@ -1449,6 +1449,7 @@
             if (token) {
                 setupSSE(token);
                 fetchActiveCalls(); // Initial check
+                setInterval(fetchActiveCalls, 5000); // Poll every 5 seconds as fallback
             }
 
             async function fetchActiveCalls() {
@@ -1459,8 +1460,8 @@
                     });
                     if (response.ok) {
                         const logs = await response.json();
-                        // Possible Vapi statuses: initiated, ringing, in-progress
-                        const activeCalls = logs.filter(l => ['initiated', 'ringing', 'in-progress'].includes(l.status));
+                        // Filter for any status that indicates the call is live or about to be
+                        const activeCalls = logs.filter(l => ['initiated', 'ringing', 'in-progress', 'queued', 'calling'].includes(l.status));
 
                         const section = document.getElementById('live-calls-section');
                         const list = document.getElementById('live-calls-list');

@@ -743,12 +743,12 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
                  print(f"SMS Request: {parameters}")
                  return JSONResponse(content={"result": "SMS logged"})
 
-        elif message_type in ["call.started", "call.status-update", "status-update"]:
-             call_id = call_obj.get("id")
-             status = call_obj.get("status")
+        elif message_type in ["call.started", "call.status-update", "status-update", "call.ringing"]:
+             call_id = call_obj.get("id") or payload.get("callId")
+             status = call_obj.get("status") or payload.get("status")
              phone = call_obj.get("customer", {}).get("number") or call_obj.get("customerNumber")
              
-             print(f"📡 CALL STATUS UPDATE: {status} for {phone}")
+             print(f"📡 ALEX_LOG [WEBHOOK]: Status={status}, CallID={call_id}, Phone={phone}")
              
              if call_id and user_email:
                  db_session = SessionLocal()
