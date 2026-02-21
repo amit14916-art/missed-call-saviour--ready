@@ -1538,8 +1538,9 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
     
     contents.append({"role": "user", "parts": [{"text": request.message}]})
 
-    # 3. Call Gemini (Updated to latest models)
-    models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"]
+    # 3. Call Gemini (Mega-Fallback System)
+    # We try different models to bypass specific model quotas
+    models = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-1.5-pro", "gemini-2.0-flash"]
     last_error = "Connection Failed"
 
     async with httpx.AsyncClient() as client:
@@ -1555,24 +1556,42 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
                 resp = await client.post(url, json={"contents": contents}, timeout=25.0)
                 if resp.status_code == 200:
                     data = resp.json()
-                    reply = data["candidates"][0]["content"]["parts"][0]["text"]
-                    
-                    # Save AI Reply
+                    # Check for safety filter refusal
                     try:
-                        db.add(ChatMessage(session_id=request.session_id, role="model", content=reply))
-                        db.commit()
-                    except: db.rollback()
-                    
-                    return {"reply": reply}
+                        reply = data["candidates"][0]["content"]["parts"][0]["text"]
+                        
+                        # Save AI Reply
+                        try:
+                            db.add(ChatMessage(session_id=request.session_id, role="model", content=reply))
+                            db.commit()
+                        except: db.rollback()
+                        
+                        return {"reply": reply}
+                    except (KeyError, IndexError):
+                        last_error = "Safety Filter: Gemini refused to answer this specific prompt."
+                        continue
+
+                elif resp.status_code == 429:
+                    last_error = "Quota Exceeded (429): Your Free Tier limit is reached. Please wait 60 seconds or use a Paid API Key."
+                    print(f"ALEX_LOG: Model {model} hit rate limit.")
+                    continue # Try next model
                 else:
-                    error_text = resp.text or f"HTTP {resp.status_code}"
-                    last_error = f"Gemini API Error: {error_text}"
+                    error_data = resp.json() if resp.text else {}
+                    msg = error_data.get("error", {}).get("message", "Unknown Error")
+                    last_error = f"Gemini API Error ({model}): {msg}"
+                    continue
             except Exception as e:
-                last_error = f"Connection error: {str(e)}"
+                last_error = f"Connection error ({model}): {str(e)}"
                 continue
 
+    # If we reached here, all models failed
+    if "429" in last_error:
+        return {
+            "reply": "⚠️ [QUOTA EXHAUSTED]: Bhai, aapka Gemini Free Tier limit khatm ho gaya hai! \n\n**Solution:** \n1. Ek naya Gemini API Key banayein (aistudio.google.com). \n2. Railway variables mein purani key ko replace kar dein. \n3. Ya phir 1 minute wait karein, free limit apne aap reset ho jayegi! 🚀"
+        }
+    
     return {
-        "reply": f"🤖 [SYSTEM ALERT]: I'm having trouble connecting to my brain.\n\nReason: {last_error}\n\nThis usually means the API key is invalid or your usage limit is exceeded. Please check your credentials."
+        "reply": f"🤖 [ALEX SYSTEM ALERT]: {last_error}"
     }
 
 @app.post("/api/v4/nuclear-alex")
