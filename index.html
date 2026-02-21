@@ -112,29 +112,127 @@
 
         /* Hero */
         .hero {
-            text-align: center;
-            padding: 120px 0 100px;
-            position: relative;
+            padding: 100px 0 60px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 85vh;
+            justify-content: center;
         }
 
         .hero h1 {
-            font-size: 4.5rem;
-            line-height: 1.1;
-            margin-bottom: 24px;
-            letter-spacing: -0.03em;
-            font-weight: 800;
-            background: linear-gradient(to bottom, #fff 40%, rgba(255, 255, 255, 0.5));
+            font-size: 3.5rem;
+            line-height: 1.2;
+            margin-bottom: 40px;
+            letter-spacing: -0.02em;
+            font-weight: 700;
+            text-align: center;
+            background: linear-gradient(90deg, #fff, #94a3b8);
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
-        .hero p {
-            font-size: 1.25rem;
+        /* Gemini Style Components */
+        .chat-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .gemini-input-wrapper {
+            position: relative;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            border-radius: 28px;
+            padding: 8px 8px;
+            display: flex;
+            align-items: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .gemini-input-wrapper:focus-within {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(0, 198, 255, 0.5);
+            box-shadow: 0 15px 40px rgba(0, 198, 255, 0.1);
+        }
+
+        .gemini-input-wrapper input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            padding: 12px 24px;
+            color: #fff;
+            font-size: 1.1rem;
+            outline: none;
+        }
+
+        .gemini-send-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--primary-gradient);
+            border: none;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+        }
+
+        .gemini-send-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .suggestion-chips {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 24px;
+        }
+
+        .chip {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-size: 0.9rem;
             color: var(--text-muted);
-            max-width: 600px;
-            margin: 0 auto 40px;
-            font-weight: 300;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chip:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            transform: translateY(-2px);
+        }
+
+        .chat-history {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+            margin-bottom: 20px;
+            scrollbar-width: none;
+        }
+
+        .chat-history::-webkit-scrollbar {
+            display: none;
         }
 
         /* Hero Glow Animation */
@@ -500,66 +598,72 @@
         </nav>
     </div>
 
-    <!-- Hero -->
+    <!-- Hero / Chat Section -->
     <header class="hero">
         <div class="hero-glow"></div>
-        <div class="container">
-            <h1>Defy the Gravity of <br> <span class="bg-gradient-text">Lost Sales.</span></h1>
-            <p>Don't let missed calls pull your revenue down. Deploy an autonomous AI agent that instantly captures
-                leads, books meetings, and answers questions 24/7.</p>
-
-            <!-- Interactive Tabs -->
-            <div class="demo-tabs" style="display: flex; justify-content: center; gap: 16px; margin-bottom: 20px;">
-                <button class="tab-btn active" onclick="switchTab('voice')" id="tab-voice">📞 Try Voice Call</button>
-                <button class="tab-btn" onclick="switchTab('chat')" id="tab-chat">💬 Try AI Chat</button>
+        <div class="container" style="width: 100%;">
+            <div id="greeting-area">
+                <h1 id="dynamic-greeting">Hello, I'm <span class="bg-gradient-text">Alex</span>.<br>How can I help you
+                    save sales?</h1>
             </div>
 
-            <!-- Voice Demo Container -->
-            <div id="demo-voice" class="live-demo glass-panel">
-                <div class="demo-interface">
-                    <h3 style="margin: 0 0 8px 0; font-size: 1.5rem;">Experience It Live</h3>
-                    <p style="color: var(--text-muted); margin: 0;">Enter your number. Our AI will <strong>call</strong>
-                        you instantly.
-                    </p>
-
-                    <form class="demo-input-group" onsubmit="sendDemoSMS(event)">
-                        <input type="tel" id="demoPhone" placeholder="Mobile number with Country Code (e.g. +1...)"
-                            pattern="\+[0-9]+" title="Must start with + and include country code (e.g., +15550000000)"
-                            required>
-                        <button type="submit" class="btn-primary"
-                            style="padding: 12px 32px; border-radius: 90px; margin: 2px;">
-                            Call Me
-                        </button>
-                    </form>
-                    <div id="demoStatus" class="status-msg">✓ Call Initiated. Please pick up!</div>
-                </div>
-            </div>
-
-            <!-- Chat Demo Container (Hidden by default) -->
-            <div id="demo-chat" class="live-demo glass-panel"
-                style="display: none; height: 550px; padding: 0; overflow: hidden; flex-direction: column; max-width: 700px; margin: 0 auto;">
-                <div class="chat-header"
-                    style="padding: 16px; border-bottom: 1px solid var(--glass-border); background: rgba(0,0,0,0.2);">
-                    <div style="font-weight: 600;">Alex | AI Specialist</div>
-                    <div style="font-size: 0.8rem; color: #4ade80;">● Online</div>
+            <div class="chat-container">
+                <!-- Chat History Area (Initially Hidden) -->
+                <div id="chat-messages" class="chat-history" style="display: none;">
+                    <!-- Messages will appear here -->
                 </div>
 
-                <div id="chat-messages" class="chat-messages"
-                    style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; text-align: left;">
-                    <!-- Intro Message -->
-                    <div class="msg ai">
-                        Hi, I'm Alex! 👋 I'm here to help you stop losing sales to missed calls. How can I help your
-                        business grow today?
+                <!-- Central Input Area -->
+                <div class="gemini-input-wrapper">
+                    <input type="text" id="chatInput" placeholder="Ask Alex anything..."
+                        onkeypress="handleChatEnter(event)">
+                    <button onclick="sendChatMessage()" class="gemini-send-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Suggestion Chips -->
+                <div class="suggestion-chips" id="suggestion-chips">
+                    <div class="chip" onclick="quickAsk('How does Missed Call Saviour work?')">
+                        <span>🤔</span> How it works?
+                    </div>
+                    <div class="chip" onclick="quickAsk('Show me the pricing plans')">
+                        <span>💰</span> Pricing Plans
+                    </div>
+                    <div class="chip" onclick="quickAsk('Can I record my own voice?')">
+                        <span>🎙️</span> Voice Cloning
+                    </div>
+                    <div class="chip" onclick="quickAsk('How do I setup call forwarding?')">
+                        <span>📲</span> Setup Guide
                     </div>
                 </div>
 
-                <div class="chat-input-area"
-                    style="padding: 16px; background: rgba(0,0,0,0.2); border-top: 1px solid var(--glass-border); display: flex; gap: 10px;">
-                    <input type="text" id="chatInput" placeholder="Type a message..."
-                        onkeypress="handleChatEnter(event)"
-                        style="flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 20px; padding: 10px 16px; color: white; outline: none;">
-                    <button onclick="sendChatMessage()" class="btn-primary"
-                        style="padding: 8px 20px; font-size: 0.9rem;">Send</button>
+                <!-- Demo Call Toggle (Secondary) -->
+                <div style="margin-top: 40px; color: var(--text-muted); font-size: 0.9rem;">
+                    Bored of typing? <a href="#" onclick="showVoiceDemo(event)"
+                        style="color: #00c6ff; text-decoration: underline;">Test a Live Voice Call instead &rarr;</a>
+                </div>
+            </div>
+
+            <!-- Voice Demo Container (Hidden by default) -->
+            <div id="demo-voice" class="live-demo glass-panel" style="display: none; margin-top: 40px;">
+                <div class="demo-interface">
+                    <h3 style="margin: 0 0 8px 0; font-size: 1.2rem;">Experience it via Phone</h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">Enter your number. Our AI will
+                        <strong>call</strong> you instantly.
+                    </p>
+                    <form class="demo-input-group" onsubmit="sendDemoSMS(event)"
+                        style="margin-top: 20px; max-width: 400px;">
+                        <input type="tel" id="demoPhone" placeholder="+91..." required>
+                        <button type="submit" class="btn-primary"
+                            style="padding: 10px 24px; border-radius: 90px; margin: 2px; font-size: 0.85rem;">Call
+                            Me</button>
+                    </form>
+                    <div id="demoStatus" class="status-msg">✓ Call Initiated!</div>
                 </div>
             </div>
         </div>
@@ -751,24 +855,20 @@
         }
 
         setTimeout(showSale, 5000);
-        // Tab Logic
-        function switchTab(tab) {
-            const voiceTab = document.getElementById('tab-voice');
-            const chatTab = document.getElementById('tab-chat');
+        // Tab/Toggle Logic
+        function showVoiceDemo(e) {
+            if (e) e.preventDefault();
             const voiceDemo = document.getElementById('demo-voice');
-            const chatDemo = document.getElementById('demo-chat');
-
-            if (tab === 'voice') {
-                voiceTab.classList.add('active');
-                chatTab.classList.remove('active');
-                voiceDemo.style.display = 'block'; // Or flex depending on original
-                chatDemo.style.display = 'none';
-            } else {
-                chatTab.classList.add('active');
-                voiceTab.classList.remove('active');
-                voiceDemo.style.display = 'none';
-                chatDemo.style.display = 'flex'; // Chat needs flex layout
+            voiceDemo.style.display = voiceDemo.style.display === 'none' ? 'block' : 'none';
+            if (voiceDemo.style.display === 'block') {
+                voiceDemo.scrollIntoView({ behavior: 'smooth' });
             }
+        }
+
+        // Quick Ask Logic
+        function quickAsk(text) {
+            document.getElementById('chatInput').value = text;
+            sendChatMessage();
         }
 
         // Chat Logic with Memory
@@ -780,12 +880,20 @@
             const msg = input.value.trim();
             if (!msg) return;
 
+            // UI Transitions: Show chat history, hide/shrink greeting
+            document.getElementById('chat-messages').style.display = 'flex';
+            document.getElementById('suggestion-chips').style.display = 'none';
+            const greeting = document.getElementById('dynamic-greeting');
+            greeting.style.fontSize = '1.5rem';
+            greeting.style.marginBottom = '20px';
+            greeting.innerHTML = "Chatting with <span class='bg-gradient-text'>Alex</span>";
+
             // Add User Msg
             addMessage('user', msg);
             input.value = '';
 
             // Loading Indicator
-            const loadingId = addMessage('ai', 'Alex is thinking...');
+            const loadingId = addMessage('ai', 'Thinking...');
 
             try {
                 const response = await fetch('/api/analyze-chat', {
