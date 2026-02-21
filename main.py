@@ -1538,8 +1538,8 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
     
     contents.append({"role": "user", "parts": [{"text": request.message}]})
 
-    # 3. Call Gemini
-    models = ["gemini-1.5-flash", "gemini-pro"]
+    # 3. Call Gemini (Updated to latest models)
+    models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"]
     last_error = "Connection Failed"
 
     async with httpx.AsyncClient() as client:
