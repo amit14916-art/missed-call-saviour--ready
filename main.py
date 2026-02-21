@@ -1536,8 +1536,8 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
     
     contents.append({"role": "user", "parts": [{"text": request.message}]})
 
-    # 3. Call Gemini (Key Rotation + Model Fallback)
-    models = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-1.5-pro", "gemini-2.0-flash"]
+    # 3. Call Gemini Pool (Rotation + Model Fallback)
+    models = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash-lite-preview-02-05", "gemini-1.5-pro", "gemini-2.0-flash"]
     last_error = "Connection Failed"
 
     async with httpx.AsyncClient() as client:
@@ -1547,45 +1547,57 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
             db.commit()
         except: db.rollback()
 
-        # Iterate through keys, then through models
+        # PROVIDER 1: GEMINI
         for current_key in api_keys:
-            key_suffix = current_key[-4:]
-            print(f"ALEX_LOG: Trying Key ending in ...{key_suffix}")
-            
             for model in models:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={current_key}"
                 try:
-                    resp = await client.post(url, json={"contents": contents}, timeout=25.0)
+                    resp = await client.post(url, json={"contents": contents}, timeout=20.0)
                     if resp.status_code == 200:
                         data = resp.json()
+                        reply = data["candidates"][0]["content"]["parts"][0]["text"]
                         try:
-                            reply = data["candidates"][0]["content"]["parts"][0]["text"]
-                            
-                            # Save AI Reply
-                            try:
-                                db.add(ChatMessage(session_id=request.session_id, role="model", content=reply))
-                                db.commit()
-                            except: db.rollback()
-                            
-                            return {"reply": reply}
-                        except:
-                            last_error = f"Safety Filter Refusal ({model})"
-                            continue
-
+                            db.add(ChatMessage(session_id=request.session_id, role="model", content=reply))
+                            db.commit()
+                        except: db.rollback()
+                        return {"reply": reply}
                     elif resp.status_code == 429:
-                        last_error = "Rate Limit Hit"
-                        print(f"ALEX_LOG: Key ...{key_suffix} hit 429 on {model}. Rotating...")
-                        break # Break model loop, try next key
-                    else:
-                        msg = resp.json().get("error", {}).get("message", f"HTTP {resp.status_code}")
-                        last_error = f"API Error ({model}): {msg}"
+                        last_error = "Gemini Quota Exceeded"
+                        break # Try next key
+                except: continue
+
+        # PROVIDER 2: GROQ FALLBACK (If Gemini Fails)
+        groq_key = os.getenv("GROQ_API_KEY", "").strip()
+        if groq_key:
+            print("ALEX_LOG: Gemini failed. Falling back to Groq (Llama-3)...")
+            groq_models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"]
+            for g_model in groq_models:
+                try:
+                    groq_url = "https://api.groq.com/openai/v1/chat/completions"
+                    headers = {"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"}
+                    # Convert Gemini contents to OpenAI format
+                    groq_messages = [{"role": m["role"], "content": m["parts"][0]["text"]} for m in contents]
+                    
+                    resp = await client.post(groq_url, headers=headers, json={
+                        "model": g_model,
+                        "messages": groq_messages,
+                        "temperature": 0.7
+                    }, timeout=20.0)
+                    
+                    if resp.status_code == 200:
+                        reply = resp.json()["choices"][0]["message"]["content"]
+                        try:
+                            db.add(ChatMessage(session_id=request.session_id, role="model", content=reply))
+                            db.commit()
+                        except: db.rollback()
+                        return {"reply": f"[Groq-Powered] {reply}"}
                 except Exception as e:
-                    last_error = f"Conn error: {str(e)}"
+                    print(f"ALEX_LOG: Groq {g_model} failed: {e}")
                     continue
 
     # Final Failure Response
     return {
-        "reply": f"🤖 [ALEX SCALING ALERT]: All keys in rotation hit their limits. \n\n**Reason:** {last_error} \n\n**Bhai simple hai:** \n1. Do aur free keys banaiye aur Railway mein comma (,) se separate karke daal dein. \n2. Ya phir AI Studio mein billing on karke unlimited scaling payein! 🚀"
+        "reply": f"🤖 [ALEX SCALING ALERT]: All providers are busy. \n\n**Tip:** Add a `GROQ_API_KEY` to Railway for 100% uptime fallback! 🚀"
     }
 
 @app.post("/api/v4/nuclear-alex")
