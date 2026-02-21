@@ -1483,13 +1483,11 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
     """
     Alex's intelligence with RAG and strict role alternation for Gemini.
     """
-    api_key_env = os.getenv("GEMINI_API_KEY", "").strip()
-    api_key_v = api_key_env if api_key_env else GEMINI_API_KEY.strip()
+    raw_keys = os.getenv("GEMINI_API_KEY", "").strip() or GEMINI_API_KEY.strip()
+    api_keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
     
-    if not api_key_v:
-        return {"reply": "⚠️ [CONFIG ERROR]: GEMINI_API_KEY is missing. Please add it to your Railway Environment Variables."}
-    
-    api_key = api_key_v
+    if not api_keys:
+        return {"reply": "⚠️ [CONFIG ERROR]: No GEMINI_API_KEY found. Please add keys to Railway."}
     
     # 1. RAG context fetching
     rag_context = ""
@@ -1538,60 +1536,56 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
     
     contents.append({"role": "user", "parts": [{"text": request.message}]})
 
-    # 3. Call Gemini (Mega-Fallback System)
-    # We try different models to bypass specific model quotas
+    # 3. Call Gemini (Key Rotation + Model Fallback)
     models = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-1.5-pro", "gemini-2.0-flash"]
     last_error = "Connection Failed"
 
     async with httpx.AsyncClient() as client:
-        # Save User Message
+        # Save User Message once
         try:
             db.add(ChatMessage(session_id=request.session_id, role="user", content=request.message))
             db.commit()
         except: db.rollback()
 
-        for model in models:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-            try:
-                resp = await client.post(url, json={"contents": contents}, timeout=25.0)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    # Check for safety filter refusal
-                    try:
-                        reply = data["candidates"][0]["content"]["parts"][0]["text"]
-                        
-                        # Save AI Reply
+        # Iterate through keys, then through models
+        for current_key in api_keys:
+            key_suffix = current_key[-4:]
+            print(f"ALEX_LOG: Trying Key ending in ...{key_suffix}")
+            
+            for model in models:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={current_key}"
+                try:
+                    resp = await client.post(url, json={"contents": contents}, timeout=25.0)
+                    if resp.status_code == 200:
+                        data = resp.json()
                         try:
-                            db.add(ChatMessage(session_id=request.session_id, role="model", content=reply))
-                            db.commit()
-                        except: db.rollback()
-                        
-                        return {"reply": reply}
-                    except (KeyError, IndexError):
-                        last_error = "Safety Filter: Gemini refused to answer this specific prompt."
-                        continue
+                            reply = data["candidates"][0]["content"]["parts"][0]["text"]
+                            
+                            # Save AI Reply
+                            try:
+                                db.add(ChatMessage(session_id=request.session_id, role="model", content=reply))
+                                db.commit()
+                            except: db.rollback()
+                            
+                            return {"reply": reply}
+                        except:
+                            last_error = f"Safety Filter Refusal ({model})"
+                            continue
 
-                elif resp.status_code == 429:
-                    last_error = "Quota Exceeded (429): Your Free Tier limit is reached. Please wait 60 seconds or use a Paid API Key."
-                    print(f"ALEX_LOG: Model {model} hit rate limit.")
-                    continue # Try next model
-                else:
-                    error_data = resp.json() if resp.text else {}
-                    msg = error_data.get("error", {}).get("message", "Unknown Error")
-                    last_error = f"Gemini API Error ({model}): {msg}"
+                    elif resp.status_code == 429:
+                        last_error = "Rate Limit Hit"
+                        print(f"ALEX_LOG: Key ...{key_suffix} hit 429 on {model}. Rotating...")
+                        break # Break model loop, try next key
+                    else:
+                        msg = resp.json().get("error", {}).get("message", f"HTTP {resp.status_code}")
+                        last_error = f"API Error ({model}): {msg}"
+                except Exception as e:
+                    last_error = f"Conn error: {str(e)}"
                     continue
-            except Exception as e:
-                last_error = f"Connection error ({model}): {str(e)}"
-                continue
 
-    # If we reached here, all models failed
-    if "429" in last_error:
-        return {
-            "reply": "⚠️ [QUOTA EXHAUSTED]: Bhai, aapka Gemini Free Tier limit khatm ho gaya hai! \n\n**Solution:** \n1. Ek naya Gemini API Key banayein (aistudio.google.com). \n2. Railway variables mein purani key ko replace kar dein. \n3. Ya phir 1 minute wait karein, free limit apne aap reset ho jayegi! 🚀"
-        }
-    
+    # Final Failure Response
     return {
-        "reply": f"🤖 [ALEX SYSTEM ALERT]: {last_error}"
+        "reply": f"🤖 [ALEX SCALING ALERT]: All keys in rotation hit their limits. \n\n**Reason:** {last_error} \n\n**Bhai simple hai:** \n1. Do aur free keys banaiye aur Railway mein comma (,) se separate karke daal dein. \n2. Ya phir AI Studio mein billing on karke unlimited scaling payein! 🚀"
     }
 
 @app.post("/api/v4/nuclear-alex")
