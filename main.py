@@ -226,6 +226,21 @@ async def startup_event():
             print("SUCCESS: Auto-migration successful: 'transcript' column added!", flush=True)
         else:
             print("SUCCESS: DB Check: 'transcript' column exists.", flush=True)
+
+        # Auto-Migration: Add 'vapi_call_id' and 'monitor_url' if missing (CRITICAL FOR LIVE MONITORING)
+        if 'vapi_call_id' not in columns:
+            print("INFO: 'vapi_call_id' column missing. Attempting auto-migration...", flush=True)
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE call_logs ADD COLUMN vapi_call_id VARCHAR(255)"))
+                conn.commit()
+            print("SUCCESS: 'vapi_call_id' added!", flush=True)
+            
+        if 'monitor_url' not in columns:
+            print("INFO: 'monitor_url' column missing. Attempting auto-migration...", flush=True)
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE call_logs ADD COLUMN monitor_url TEXT"))
+                conn.commit()
+            print("SUCCESS: 'monitor_url' added!", flush=True)
             
         # Auto-Migration: Add 'is_admin' to users if missing
         columns_users = [col['name'] for col in inspector.get_columns('users')]
