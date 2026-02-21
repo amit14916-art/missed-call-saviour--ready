@@ -411,7 +411,7 @@
                     </div>
                 </div>
             </div>
-            <div style="font-size: 0.8rem; color: #475569; text-align: center;">v2.1.0 (Fresh) </div>
+            <div style="font-size: 0.8rem; color: #475569; text-align: center;">v2.3.5 (Stable) </div>
         </div>
         <!-- Main Content -->
         <div class="main-content">
@@ -519,7 +519,11 @@
                                 style="margin-bottom: 12px; font-size: 0.9rem;"><button class="btn" id="demoBtn"
                                 onclick="triggerDemoCall()"
                                 style="width:100%; display: flex; align-items: center; justify-content: center; gap: 8px;"><span>📞</span>Trigger
-                                Call </button>
+                                Call</button>
+                            <button class="btn" onclick="fetchActiveCalls()"
+                                style="width:100%; margin-top: 10px; background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.3); color: #34d399; font-size: 0.8rem;">
+                                🔄 Refresh Live List
+                            </button>
                             <p
                                 style="font-size: 0.75rem; color: var(--text-muted); margin-top: 12px; margin-bottom: 0; line-height: 1.4;">
                                 Instantly requests a call from your AI to test its current greeting
@@ -1460,8 +1464,10 @@
                     });
                     if (response.ok) {
                         const logs = await response.json();
-                        // Filter for any status that indicates the call is live or about to be
-                        const activeCalls = logs.filter(l => ['initiated', 'ringing', 'in-progress', 'queued', 'calling'].includes(l.status));
+                        console.log("ALEX_DEBUG: Total Logs:", logs.length);
+                        // Expanded active check: includes any status that isn't 'ended', 'completed', 'failed', 'no-answer'
+                        const activeCalls = logs.filter(l => l.status && !['ended', 'completed', 'failed', 'no-answer', 'error'].includes(l.status.toLowerCase()));
+                        console.log("ALEX_DEBUG: Active Calls Found:", activeCalls.length, activeCalls);
 
                         const section = document.getElementById('live-calls-section');
                         const list = document.getElementById('live-calls-list');
