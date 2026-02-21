@@ -183,6 +183,8 @@ class CallLog(Base):
     recording_url = Column(String, nullable=True)
     duration = Column(Integer, default=0) 
     timestamp = Column(DateTime, default=datetime.utcnow)
+    vapi_call_id = Column(String, nullable=True)
+    monitor_url = Column(String, nullable=True)
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
@@ -725,6 +727,37 @@ async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
             elif function_name == "send_sms":
                  print(f"SMS Request: {parameters}")
                  return JSONResponse(content={"result": "SMS logged"})
+
+        elif message_type in ["call.started", "call.status-update", "status-update"]:
+             call_id = call_obj.get("id")
+             status = call_obj.get("status")
+             phone = call_obj.get("customer", {}).get("number") or call_obj.get("customerNumber")
+             
+             print(f"📡 CALL STATUS UPDATE: {status} for {phone}")
+             
+             if call_id and user_email:
+                 db_session = SessionLocal()
+                 try:
+                     # Update or Create entry
+                     existing = db_session.query(CallLog).filter(CallLog.vapi_call_id == call_id).first()
+                     if existing:
+                         existing.status = status
+                     else:
+                         new_log = CallLog(
+                             user_email=user_email,
+                             phone_number=phone or "Unknown",
+                             call_type="inbound" if call_obj.get("type") == "inbound" else "outbound",
+                             status=status,
+                             vapi_call_id=call_id,
+                             timestamp=datetime.utcnow()
+                         )
+                         db_session.add(new_log)
+                     db_session.commit()
+                     await sse_manager.broadcast("update_dashboard")
+                 except Exception as e:
+                     print(f"Error updating call status: {e}")
+                 finally:
+                     db_session.close()
 
         elif message_type == "end-of-call-report" or message_type == "End Of Call Report":
              
@@ -1791,7 +1824,8 @@ async def send_demo_call(
                     phone_number=phone,
                     call_type="outbound-demo",
                     status="initiated",
-                    summary="Demo call triggered from dashboard."
+                    summary="Demo call triggered from dashboard.",
+                    vapi_call_id=response.json().get("id")
                 )
                 db.add(new_log)
                 db.commit()
@@ -1801,6 +1835,20 @@ async def send_demo_call(
                 return JSONResponse(status_code=response.status_code, content={"details": response.text})
         except Exception as e:
             return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/api/calls/{vapi_call_id}/join")
+async def join_live_call(vapi_call_id: str, current_user: User = Depends(get_current_user)):
+    """
+    Redirects or provides instructions to join a live call.
+    In a real-world scenario, we'd use Vapi's 'Transfer' tool.
+    For this version, we redirect to the Vapi monitor dashboard.
+    """
+    # Instruct the user to open the Vapi console or we could trigger a transfer via rest API
+    # trigger_transfer_url = f"https://api.vapi.ai/call/{vapi_call_id}/transfer"
+    
+    # Simple redirect to Vapi Dashboard for monitoring
+    vapi_dashboard_url = f"https://dashboard.vapi.ai/calls/{vapi_call_id}"
+    return {"monitor_url": vapi_dashboard_url, "message": "Opening Vapi Dashboard to Join/Monitor call."}
 
 @app.post("/api/calls/{call_id}/re-summarize")
 async def re_summarize_call(call_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
