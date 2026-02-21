@@ -1575,6 +1575,19 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
         "reply": f"🤖 [SYSTEM ALERT]: I'm having trouble connecting to my brain.\n\nReason: {last_error}\n\nThis usually means the API key is invalid or your usage limit is exceeded. Please check your credentials."
     }
 
+@app.post("/api/alex-chat")
+async def alex_chat_v2(request: ChatRequest, db: Session = Depends(get_db)):
+    """The new, true endpoint for Alex's intelligence."""
+    # Reuse the logic we already have
+    return await analyze_chat_message(request, db)
+
+@app.post("/api/analyze-chat")
+async def analyze_chat_legacy(request: ChatRequest):
+    """Fallback for cached browsers."""
+    return {
+        "reply": "⚠️ [UPDATE DETECTED]: Bhai, humne Alex ko upgrade kar diya hai! \n\nLekin aapka browser purana version dikha raha hai. Please ek baar **Ctrl + F5** (Hard Refresh) dabaiye ya **Incognito Mode** mein kholiye. Alex wahan aapka intezar kar raha hai! 🚀"
+    }
+
 @app.post("/api/upload-call-recording")
 async def upload_call_recording(
     file: UploadFile = File(...), 

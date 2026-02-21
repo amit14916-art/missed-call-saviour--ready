@@ -964,7 +964,7 @@
             const loadingId = addMessage('ai', 'Thinking...');
 
             try {
-                const response = await fetch('/api/analyze-chat', {
+                const response = await fetch('/api/alex-chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message: msg, session_id: session_id })
