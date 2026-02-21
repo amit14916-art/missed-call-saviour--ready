@@ -283,7 +283,7 @@ const chatStructure = `
             <div class="typing-dot"></div>
         </div>
         <form class="chat-input-area" onsubmit="handleUserSubmit(event)">
-            <input type="text" class="chat-input" id="chatInput" placeholder="Type a message...">
+            <input type="text" class="chat-input" id="widgetChatInput" placeholder="Type a message...">
             <button type="submit" class="chat-send">➤</button>
         </form>
     </div>
@@ -305,7 +305,7 @@ function sendQuickReply(text) {
 
 function handleUserSubmit(e) {
     e.preventDefault();
-    const input = document.getElementById('chatInput');
+    const input = document.getElementById('widgetChatInput');
     const text = input.value.trim();
     if (text) {
         addMessage(text, 'user');
@@ -336,28 +336,33 @@ function hideTyping() {
     document.getElementById('typingIndicator').style.display = 'none';
 }
 
-function processBotResponse(userText) {
+const sessionId = 'web_' + Math.random().toString(36).substr(2, 9);
+
+async function processBotResponse(userText) {
     showTyping();
 
-    // Simulate AI delay
-    setTimeout(() => {
-        hideTyping();
-        let response = "";
-        const lowerText = userText.toLowerCase();
+    try {
+        const response = await fetch('/api/analyze-chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: userText,
+                session_id: sessionId
+            })
+        });
 
-        if (lowerText.includes('pricing') || lowerText.includes('cost')) {
-            response = "We have plans starting at $29/mo (Solo) up to $99/mo (Agency). You can see full details on our Pricing page.";
-        } else if (lowerText.includes('work') || lowerText.includes('feature')) {
-            response = "I automatically text back anyone who calls you when you're busy. I can also use AI to answer their questions and book appointments!";
-        } else if (lowerText.includes('support') || lowerText.includes('human') || lowerText.includes('help')) {
-            response = "Our team is available 24/7. You can email us at support@missedcallsaviour.com or call +1-555-0199.";
-        } else if (lowerText.includes('demo')) {
-            response = "You can try the live demo! Just entered your number and I'll give you a call.";
-            // Ideally trigger the call API here if you had the phone number
-        } else {
-            response = "That's a great question! I'm still learning, but our team can answer that in more detail. Would you like to connect with a support agent?";
+        if (!response.ok) {
+            throw new Error('API Error');
         }
 
-        addMessage(response, 'bot');
-    }, 1500);
+        const data = await response.json();
+        hideTyping();
+        addMessage(data.reply || "I'm having a bit of a moment. Could you try that again?", 'bot');
+    } catch (err) {
+        hideTyping();
+        console.error("Chat error:", err);
+        addMessage("Sorry, I'm experiencing some connectivity issues. Please try again in a moment.", 'bot');
+    }
 }

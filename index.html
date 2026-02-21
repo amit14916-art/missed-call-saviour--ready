@@ -613,7 +613,7 @@
     <div class="container">
         <nav>
             <a href="/" class="logo">Missed Call Saviour <span
-                    style="font-size: 0.7rem; color: #f43f5e; font-weight: bold;">v1.3.3 (FINAL)</span></a>
+                    style="font-size: 0.7rem; color: #fbbf24; font-weight: bold;">v1.4.0 (NUCLEAR)</span></a>
             <div class="nav-links">
                 <a href="/" class="active">Home</a>
                 <a href="/roi">ROI Calculator</a>
@@ -675,7 +675,7 @@
 
                         <!-- Central Input Area -->
                         <div class="gemini-input-wrapper">
-                            <input type="text" id="chatInput" placeholder="Ask Alex anything..."
+                            <input type="text" id="heroChatInput" placeholder="Ask Alex anything..."
                                 onkeypress="handleChatEnter(event)">
                             <button onclick="sendChatMessage()" class="gemini-send-btn">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -944,7 +944,7 @@
         localStorage.setItem('chat_session_id', session_id);
 
         async function sendChatMessage() {
-            const input = document.getElementById('chatInput');
+            const input = document.getElementById('heroChatInput');
             const msg = input.value.trim();
             if (!msg) return;
 
@@ -954,7 +954,7 @@
             const greeting = document.getElementById('dynamic-greeting');
             greeting.style.fontSize = '1.5rem';
             greeting.style.marginBottom = '20px';
-            greeting.innerHTML = "Chatting with <span class='bg-gradient-text'>Alex</span> <small style='font-size:0.6rem; opacity:0.5;'>v1.3.2</small>";
+            greeting.innerHTML = "Chatting with <span class='bg-gradient-text'>Alex</span> <small style='font-size:0.6rem; opacity:0.5;'>v1.4.0</small>";
 
             // Add User Msg
             addMessage('user', msg);
@@ -964,13 +964,14 @@
             const loadingId = addMessage('ai', 'Thinking...');
 
             try {
-                const response = await fetch('/api/alex-chat', {
+                const response = await fetch('/api/v3/alex-engine', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message: msg, session_id: session_id })
                 });
 
                 const data = await response.json();
+                console.log("ALEX V3 DEBUG:", data);
 
                 // Remove Loading
                 const loadingEl = document.getElementById(loadingId);
@@ -984,10 +985,15 @@
                     addMessage('ai', errorMsg + detail);
                 }
             } catch (err) {
-                console.error(err);
+                console.error("ALEX V3 ERROR:", err);
                 const loadingEl = document.getElementById(loadingId);
-                if (loadingEl) loadingEl.innerText = "Connection Failed.";
+                if (loadingEl) loadingEl.innerText = "Connection Failed: " + err.message;
             }
+        }
+
+        function quickAsk(text) {
+            document.getElementById('heroChatInput').value = text;
+            sendChatMessage();
         }
 
         function addMessage(sender, text) {
