@@ -1483,9 +1483,13 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
     """
     Alex's intelligence with RAG and strict role alternation for Gemini.
     """
-    api_key = os.getenv("GEMINI_API_KEY", GEMINI_API_KEY).strip()
-    if not api_key:
-        return JSONResponse(status_code=500, content={"error": "GEMINI_API_KEY is not set in environment or config."})
+    api_key_env = os.getenv("GEMINI_API_KEY", "").strip()
+    api_key_v = api_key_env if api_key_env else GEMINI_API_KEY.strip()
+    
+    if not api_key_v:
+        return {"reply": "⚠️ [CONFIG ERROR]: GEMINI_API_KEY is missing. Please add it to your Railway Environment Variables."}
+    
+    api_key = api_key_v
     
     # 1. RAG context fetching
     rag_context = ""
