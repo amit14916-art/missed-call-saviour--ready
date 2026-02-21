@@ -10,7 +10,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-dark: #050a14;
+            --bg-dark: #0a0118;
+            /* Deep Purple Update */
             --bg-card: rgba(30, 41, 59, 0.4);
             --primary-gradient: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
             --text-main: #f1f5f9;
@@ -612,8 +613,9 @@
     <!-- Nav -->
     <div class="container">
         <nav>
-            <a href="/" class="logo">Missed Call Saviour <span
-                    style="font-size: 0.7rem; color: #fbbf24; font-weight: bold;">v1.4.0 (NUCLEAR)</span></a>
+            <a href="/" class="logo" style="color: #f97316 !important;">Missed Call Saviour <span
+                    style="font-size: 0.7rem; color: #fff; background: #f97316; padding: 2px 6px; border-radius: 4px;">v1.5.0
+                    (MEGA)</span></a>
             <div class="nav-links">
                 <a href="/" class="active">Home</a>
                 <a href="/roi">ROI Calculator</a>
@@ -964,7 +966,7 @@
             const loadingId = addMessage('ai', 'Thinking...');
 
             try {
-                const response = await fetch('/api/v3/alex-engine', {
+                const response = await fetch('/api/v4/nuclear-alex', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message: msg, session_id: session_id })

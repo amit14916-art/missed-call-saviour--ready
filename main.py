@@ -1575,23 +1575,20 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
         "reply": f"🤖 [SYSTEM ALERT]: I'm having trouble connecting to my brain.\n\nReason: {last_error}\n\nThis usually means the API key is invalid or your usage limit is exceeded. Please check your credentials."
     }
 
-@app.post("/api/v3/alex-engine")
-async def alex_chat_v3(request: ChatRequest, db: Session = Depends(get_db)):
-    """Nuclear Fix: The definitive endpoint for Alex's intelligence."""
-    print(f"DEBUG: V3 Chat Request: {request.message}")
+@app.post("/api/v4/nuclear-alex")
+async def alex_chat_v4(request: ChatRequest, db: Session = Depends(get_db)):
+    """The Mega-Nuclear Fix: Definitive v4 endpoint."""
+    print(f"ALEX_LOG: Request from {request.session_id}: {request.message}")
     result = await analyze_chat_message(request, db)
-    print(f"DEBUG: V3 Reply: {result.get('reply', 'ERROR')[:50]}...")
+    print(f"ALEX_LOG: Final Response: {result.get('reply', 'EMPTY')[:50]}")
     return result
 
+@app.post("/api/v3/alex-engine")
 @app.post("/api/alex-chat")
-async def alex_chat_v2_fallback(request: ChatRequest, db: Session = Depends(get_db)):
-    return await analyze_chat_message(request, db)
-
 @app.post("/api/analyze-chat")
-async def analyze_chat_legacy(request: ChatRequest):
-    """Fallback for cached browsers."""
+async def legacy_chat_redirect(request: ChatRequest):
     return {
-        "reply": "⚠️ [REFRESH REQUIRED]: Bhai, please ek baar **Ctrl + F5** dabaiye! Aapka browser purana code use kar raha hai. Maine Alex ko v1.4.0 par upgrade kar diya hai! 🚀"
+        "reply": "⚠️ [IMPORTANT]: Bhai, humne Alex ko Upgrade kar diya hai! \n\nAapka browser purana version load kar raha hai. Please ek baar **CRTL + F5** daba kar naya version (V1.5.0 - Purple UI) load karein. Tabhi Alex reply dega! 🚀"
     }
 
 @app.post("/api/upload-call-recording")
