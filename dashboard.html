@@ -348,7 +348,8 @@
     <div class="dashboard-container">
         <!-- Sidebar -->
         <div class="sidebar">
-            <div><a href="/" class="logo">Missed Call Saviour</a>
+            <div><a href="/" class="logo">Missed Call Saviour <span
+                        style="font-size: 0.7rem; opacity: 0.6; font-weight: normal;">v1.2</span></a>
                 <div class="nav-menu">
                     <div class="menu-item active" onclick="showView('dashboard')"><span>📊</span>Dashboard </div>
                     <div class="menu-item" onclick="showView('logs')"><span>📞</span>Call Logs </div>
@@ -453,6 +454,18 @@
                                 Instantly requests a call from your AI to test its current greeting
                                 and personality. </p>
                             <div id="demoMsg" style="margin-top: 10px; font-size: 0.8rem; display: none;"></div>
+                        </div>
+
+                        <div
+                            style="margin-top: 16px; background: rgba(0, 198, 255, 0.1); padding: 16px; border-radius: 12px; border: 1px solid rgba(0, 198, 255, 0.2);">
+                            <label
+                                style="font-size: 0.85rem; margin-bottom: 8px; display: block; color: #00c6ff; font-weight: bold;">✨
+                                Voice Cloning</label>
+                            <button class="btn" onclick="showView('settings')"
+                                style="width:100%; height: 40px; background: var(--primary-gradient); font-size: 0.85rem;">🎙️
+                                Setup My Asli Aawaz</button>
+                            <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 8px; margin-bottom: 0;">Click here
+                                to record your voice and clonoe it instantly.</p>
                         </div>
                     </div>
                 </div>
@@ -589,6 +602,62 @@
                         <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px;">
                             We will use this to forward urgent leads or send you call alerts.
                         </p>
+                    </div>
+
+                    <div class="form-group"
+                        style="background: rgba(0, 198, 255, 0.05); padding: 20px; border-radius: 12px; border: 1px solid rgba(0, 198, 255, 0.2); margin-top: 24px;">
+                        <h4 style="margin-top: 0; color: #00c6ff; display: flex; align-items: center; gap: 8px;">
+                            <span>🎙️</span> Live Voice Cloning (ElevenLabs)
+                        </h4>
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+                            Make the AI agent sound exactly like you. Record your voice for 30 seconds or paste an
+                            ElevenLabs Voice ID.
+                        </p>
+
+                        <div
+                            style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px dashed rgba(0, 198, 255, 0.3);">
+                            <label style="color: #fff; margin-bottom: 10px; display: block; font-size: 0.9rem;">Record
+                                Your Voice (30 seconds recommended)</label>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <button id="record-btn" class="btn"
+                                    style="background: #ef4444; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3); padding: 8px 16px; font-size: 0.85rem;"
+                                    onclick="startRecording()">🔴 Record</button>
+                                <button id="stop-btn" class="btn"
+                                    style="background: #64748b; display: none; padding: 8px 16px; font-size: 0.85rem;"
+                                    onclick="stopRecording()">⏹ Stop</button>
+                                <div id="recording-timer"
+                                    style="font-family: monospace; color: #ef4444; font-weight: bold; display: none;">
+                                    00:00</div>
+                            </div>
+                            <div id="recording-preview" style="margin-top: 15px; display: none;">
+                                <audio id="audio-playback" controls style="width: 100%; height: 35px;"></audio>
+                                <button id="upload-voice-btn" class="btn"
+                                    style="width: 100%; margin-top: 10px; background: var(--primary-gradient); padding: 10px; font-size: 0.9rem;"
+                                    onclick="uploadRecording()">✨ Clone My Voice Now</button>
+                            </div>
+                            <p id="cloning-msg" style="margin-top: 10px; font-size: 0.8rem; display: none;"></p>
+                        </div>
+
+                        <div style="text-align: center; margin-bottom: 20px; color: #475569; position: relative;">
+                            <span
+                                style="background: rgba(30, 41, 59, 1); padding: 0 10px; position: relative; z-index: 1; font-size: 0.75rem;">OR
+                                USE EXISTING ID</span>
+                            <div
+                                style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.1); z-index: 0;">
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <label>ElevenLabs Voice ID</label>
+                            <input type="text" id="ai-voice-id" placeholder="e.g. pMsXgVXv3BLzUgSgWJ5L">
+                        </div>
+
+                        <div>
+                            <label>ElevenLabs API Key (Optional)</label>
+                            <input type="password" id="ai-voice-api-key" placeholder="Paste your ElevenLabs API Key">
+                            <p style="font-size: 0.75rem; color: #94a3b8; margin-top: 4px;">If left blank, system
+                                default keys will be used if available.</p>
+                        </div>
                     </div>
                     <!-- Activation Panel (Hidden by default) -->
                     <div id="activation-panel"
@@ -904,26 +973,29 @@
                 let formattedSummary = summary;
 
                 if (!summary.includes("<ul>") && !summary.includes("Topics:")) {
-
                     // Try to beautify plain text
-                    formattedSummary = ` <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px;"><p><strong>📊 Call Overview:</strong>$ {
-                    summary
-                }
-
-                </p></div>`;
+                    formattedSummary = ` <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px;"><p><strong>📊 Call Overview:</strong> ${summary}</p></div>`;
                 }
 
                 const chatHtml = formatTranscriptToChat(transcript);
 
-                const htmlContent = ` <div style="margin-bottom: 20px;"><div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; margin-bottom:10px;"><h4 style="margin:0; color: #94a3b8;">AI Summary & Insights</h4><div style="gap:10px; display:flex;"><button onclick="copyToClipboard('summary-text')" style="background:rgba(255,255,255,0.1); border:none; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.8rem;">📋 Copy</button><button onclick="downloadTranscript(${log.id})" style="background:rgba(255,255,255,0.1); border:none; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.8rem;">⬇️ Download</button></div></div><div id="summary-text" style="color: #e2e8f0; font-size: 0.95rem; line-height:1.6; white-space: pre-wrap;">$ {
-                formattedSummary
-            }
-
-            </div></div><div><h4 style="margin-top:0; color: #94a3b8; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">Conversation Log</h4><div class="chat-container">$ {
-                chatHtml
-            }
-
-            </div></div>`;
+                const htmlContent = `
+                    <div style="margin-bottom: 20px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; margin-bottom:10px;">
+                            <h4 style="margin:0; color: #94a3b8;">AI Summary & Insights</h4>
+                            <div style="gap:10px; display:flex;">
+                                <button onclick="reSummarizeCall(${log.id})" style="background:rgba(52, 211, 153, 0.1); border:1px solid rgba(52, 211, 153, 0.3); color:#34d399; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.8rem;">🔄 Re-analyze</button>
+                                <button onclick="copyToClipboard('summary-text')" style="background:rgba(255,255,255,0.1); border:none; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.8rem;">📋 Copy</button>
+                                <button onclick="downloadTranscript(${log.id})" style="background:rgba(255,255,255,0.1); border:none; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.8rem;">⬇️ Download</button>
+                            </div>
+                        </div>
+                        <div id="summary-text" style="color: #e2e8f0; font-size: 0.95rem; line-height:1.6; white-space: pre-wrap;">${formattedSummary}</div>
+                    </div>
+                    <div>
+                        <h4 style="margin-top:0; color: #94a3b8; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">Conversation Log</h4>
+                        <div class="chat-container">${chatHtml}</div>
+                    </div>
+                `;
 
                 document.getElementById('modal-content').innerHTML = htmlContent;
                 document.getElementById('transcript-modal').style.display = 'block';
@@ -973,15 +1045,7 @@
 
                     const label = role === 'user' ? 'Caller' : 'AI Assistant';
 
-                    html += ` <div class="chat-message ${role}" > <div class="chat-header" >$ {
-                        label
-                    }
-
-                    </div> <div class="chat-bubble" >$ {
-                        content
-                    }
-
-                    </div> </div> `;
+                    html += ` <div class="chat-message ${role}" > <div class="chat-header" >${label}</div> <div class="chat-bubble" >${content}</div> </div> `;
                 });
 
                 return html;
@@ -1001,15 +1065,7 @@
                 const log = window.allCallLogs.find(l => l.id === logId);
                 if (!log) return;
 
-                const content = `CALL SUMMARY:\n$ {
-                log.summary
-            }
-
-            \n\nFULL TRANSCRIPT:\n$ {
-                log.transcript
-            }
-
-            `;
+                const content = `CALL SUMMARY:\n${log.summary}\n\nFULL TRANSCRIPT:\n${log.transcript}\n\n`;
 
                 const blob = new Blob([content], {
                     type: 'text/plain'
@@ -1018,11 +1074,7 @@
                 const a = document.createElement('a');
                 a.href = url;
 
-                a.download = `Call_Log_$ {
-            logId
-        }
-
-        .txt`;
+                a.download = `Call_Log_${logId}.txt`;
                 a.click();
                 window.URL.revokeObjectURL(url);
             }
@@ -1030,6 +1082,47 @@
             function closeModal() {
                 document.getElementById('transcript-modal').style.display = 'none';
                 document.getElementById('modal-overlay').style.display = 'none';
+            }
+
+            async function reSummarizeCall(callId) {
+                const token = localStorage.getItem('token');
+                const btn = event.target;
+                const originalText = btn.innerText;
+
+                btn.disabled = true;
+                btn.innerText = "Summarizing...";
+
+                try {
+                    const response = await fetch(`/api/calls/${callId}/re-summarize`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        document.getElementById('summary-text').innerText = data.summary;
+                        btn.innerText = "Done!";
+                        // Update local cache
+                        const log = window.allCallLogs.find(l => l.id === callId);
+                        if (log) log.summary = data.summary;
+                    } else {
+                        const err = await response.json();
+                        alert("Error: " + (err.detail || "Failed to re-summarize"));
+                        btn.innerText = "Failed";
+                    }
+                } catch (e) {
+                    alert("Network Error: " + e.message);
+                    btn.innerText = "Error";
+                } finally {
+                    setTimeout(() => {
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerText = "🔄 Re-analyze";
+                        }
+                    }, 2000);
+                }
             }
 
             window.onload = initDashboard;
@@ -1297,6 +1390,8 @@
                         document.getElementById('ai-greeting').value = config.greeting || '';
                         document.getElementById('ai-persona').value = config.persona || 'friendly';
                         document.getElementById('ai-owner-phone').value = config.owner_phone || '';
+                        document.getElementById('ai-voice-id').value = config.eleven_labs_voice_id || '';
+                        document.getElementById('ai-voice-api-key').value = config.eleven_labs_api_key || '';
                     }
                 }
 
@@ -1318,7 +1413,9 @@
                     business_name: document.getElementById('ai-business-name').value,
                     greeting: document.getElementById('ai-greeting').value,
                     persona: document.getElementById('ai-persona').value,
-                    owner_phone: document.getElementById('ai-owner-phone').value
+                    owner_phone: document.getElementById('ai-owner-phone').value,
+                    eleven_labs_voice_id: document.getElementById('ai-voice-id').value,
+                    eleven_labs_api_key: document.getElementById('ai-voice-api-key').value
                 }
 
                     ;
@@ -1365,6 +1462,105 @@
                     }
 
                         , 3000);
+                }
+            }
+
+            // --- Voice Recording Logic ---
+            let mediaRecorder;
+            let audioChunks = [];
+            let timerInterval;
+            let recordedBlob;
+
+            async function startRecording() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = (event) => {
+                        audioChunks.push(event.data);
+                    };
+
+                    mediaRecorder.onstop = () => {
+                        recordedBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        const audioUrl = URL.createObjectURL(recordedBlob);
+                        const player = document.getElementById('audio-playback');
+                        player.src = audioUrl;
+                        document.getElementById('recording-preview').style.display = 'block';
+                    };
+
+                    mediaRecorder.start();
+                    document.getElementById('record-btn').style.display = 'none';
+                    document.getElementById('stop-btn').style.display = 'inline-block';
+                    document.getElementById('recording-timer').style.display = 'inline-block';
+
+                    let seconds = 0;
+                    timerInterval = setInterval(() => {
+                        seconds++;
+                        const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+                        const secs = (seconds % 60).toString().padStart(2, '0');
+                        document.getElementById('recording-timer').innerText = `${mins}:${secs}`;
+                        if (seconds >= 60) stopRecording(); // Limit to 1 minute
+                    }, 1000);
+
+                } catch (err) {
+                    alert("Error accessing microphone: " + err.message);
+                }
+            }
+
+            function stopRecording() {
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    mediaRecorder.stop();
+                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                    clearInterval(timerInterval);
+                    document.getElementById('stop-btn').style.display = 'none';
+                    document.getElementById('record-btn').style.display = 'inline-block';
+                    document.getElementById('record-btn').innerText = "🔄 Re-record";
+                    document.getElementById('recording-timer').style.display = 'none';
+                }
+            }
+
+            async function uploadRecording() {
+                const btn = document.getElementById('upload-voice-btn');
+                const msg = document.getElementById('cloning-msg');
+                const token = localStorage.getItem('token');
+                const apiKey = document.getElementById('ai-voice-api-key').value;
+
+                btn.disabled = true;
+                btn.innerText = "⏳ Cloning Your Voice... (May take 30s)";
+                msg.style.display = 'block';
+                msg.style.color = '#94a3b8';
+                msg.innerText = "Connecting to ElevenLabs API...";
+
+                const formData = new FormData();
+                formData.append('file', recordedBlob, 'voice_sample.wav');
+                if (apiKey) formData.append('eleven_labs_api_key', apiKey);
+
+                try {
+                    const response = await fetch('/api/ai-config/clone-voice', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+
+                    const result = await response.json();
+                    if (response.ok) {
+                        msg.style.color = '#34d399';
+                        msg.innerText = "✅ Voice Cloned Successfully!";
+                        document.getElementById('ai-voice-id').value = result.voice_id;
+                        btn.innerText = "Voice Cloned!";
+                        // Trigger AI Settings save automatically
+                        setTimeout(updateAIConfig, 1000);
+                    } else {
+                        throw new Error(result.detail || "Voice cloning failed.");
+                    }
+                } catch (e) {
+                    msg.style.color = '#ef4444';
+                    msg.innerText = "Error: " + e.message;
+                    btn.disabled = false;
+                    btn.innerText = "✨ Clone My Voice Now";
                 }
             }
 

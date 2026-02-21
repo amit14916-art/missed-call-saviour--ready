@@ -20,6 +20,9 @@ from config_secrets import DATABASE_URL, VAPI_PRIVATE_KEY, VAPI_ASSISTANT_ID, VA
 from fastapi import UploadFile, File
 import shutil
 from pathlib import Path
+from fastapi.middleware.cors import CORSMiddleware
+
+# ... (rest of imports)
 
 # Configure Gemini (Prefer Environment Variable)
 try:
@@ -125,6 +128,15 @@ Base = declarative_base()
 # --- Initialize App ---
 app = FastAPI(title="Missed Call Saviour Backend")
 
+# Add CORS Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -194,23 +206,23 @@ async def startup_event():
         inspector = inspect(engine)
         columns = [col['name'] for col in inspector.get_columns('call_logs')]
         if 'transcript' not in columns:
-            print("⚠️ 'transcript' column missing in 'call_logs'. Attempting auto-migration...", flush=True)
+            print("INFO: 'transcript' column missing in 'call_logs'. Attempting auto-migration...", flush=True)
             with engine.connect() as conn:
                 conn.execute(text("ALTER TABLE call_logs ADD COLUMN transcript TEXT"))
                 conn.commit()
-            print("✅ Auto-migration successful: 'transcript' column added!", flush=True)
+            print("SUCCESS: Auto-migration successful: 'transcript' column added!", flush=True)
         else:
-            print("✅ DB Check: 'transcript' column exists.", flush=True)
+            print("SUCCESS: DB Check: 'transcript' column exists.", flush=True)
             
         # Auto-Migration: Add 'is_admin' to users if missing
         columns_users = [col['name'] for col in inspector.get_columns('users')]
         if 'is_admin' not in columns_users:
-            print("⚠️ 'is_admin' column missing in 'users'. Attempting auto-migration...", flush=True)
+            print("INFO: 'is_admin' column missing in 'users'. Attempting auto-migration...", flush=True)
             with engine.connect() as conn:
                 conn.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE"))
                 conn.execute(text("UPDATE users SET is_admin = TRUE WHERE id = 1")) # Make first user Admin
                 conn.execute(text("UPDATE users SET is_admin = TRUE WHERE email = 'amit14916@gmail.com'")) # Ensure Amit is Admin
-            print("✅ Auto-migration successful: 'is_admin' column added & User 1 promoted!", flush=True)
+            print("SUCCESS: Auto-migration successful: 'is_admin' column added & User 1 promoted!", flush=True)
 
         # Force First User as Admin (Safety Net)
         try:
@@ -227,19 +239,19 @@ async def startup_event():
         source = "Environment Variable (Railway)" if env_key else "Config File (Hardcoded)"
         masked_key = f"********{usage_key[-4:]}" if len(usage_key) > 4 else "Not Set"
         
-        print(f"🔑 Gemini Key Loaded From: {source}", flush=True)
-        print(f"🔑 Active Key Suffix: {masked_key}", flush=True)
+        print(f"INFO: Gemini Key Loaded From: {source}", flush=True)
+        print(f"INFO: Active Key Suffix: {masked_key}", flush=True)
         
         if not usage_key:
-            print("❌ CRITICAL: No Gemini API Key found!", flush=True)
+            print("ERROR: CRITICAL: No Gemini API Key found!", flush=True)
         # ------------------------------------
 
         if 'phone_number' not in columns_users:
-            print("⚠️ 'phone_number' column missing in 'users'. Attempting auto-migration...", flush=True)
+            print("INFO: 'phone_number' column missing in 'users'. Attempting auto-migration...", flush=True)
             with engine.connect() as conn:
                 conn.execute(text("ALTER TABLE users ADD COLUMN phone_number VARCHAR(20)"))
                 conn.commit()
-            print("✅ Auto-migration successful: 'phone_number' column added!", flush=True)
+            print("SUCCESS: Auto-migration successful: 'phone_number' column added!", flush=True)
 
         # AI Config Migrations (Merged from secondary startup event)
         if inspector.has_table("ai_configs"):
@@ -257,18 +269,26 @@ async def startup_event():
                      print("Migrating: Adding vapi_assistant_id to ai_configs...")
                      conn.execute(text("ALTER TABLE ai_configs ADD COLUMN vapi_assistant_id VARCHAR(100)"))
                      conn.commit()
+                 if "eleven_labs_voice_id" not in columns_ai:
+                     print("Migrating: Adding eleven_labs_voice_id to ai_configs...")
+                     conn.execute(text("ALTER TABLE ai_configs ADD COLUMN eleven_labs_voice_id VARCHAR(100)"))
+                     conn.commit()
+                 if "eleven_labs_api_key" not in columns_ai:
+                     print("Migrating: Adding eleven_labs_api_key to ai_configs...")
+                     conn.execute(text("ALTER TABLE ai_configs ADD COLUMN eleven_labs_api_key VARCHAR(255)"))
+                     conn.commit()
 
     except Exception as e:
-        print(f"❌ Auto-migration failed: {e}", flush=True)
+        print(f"ERROR: Auto-migration failed: {e}", flush=True)
 
     # Force Specific Admin Update (Run every time to ensure access)
     try:
         with engine.connect() as conn:
             conn.execute(text("UPDATE users SET is_admin = TRUE WHERE email = 'amit14916@gmail.com'"))
             conn.commit()
-            print("✅ Admin privileges explicitly granted to amit14916@gmail.com")
+            print("SUCCESS: Admin privileges explicitly granted to amit14916@gmail.com")
     except Exception as e:
-        print(f"⚠️ Failed to force admin update: {e}")
+        print(f"INFO: Failed to force admin update: {e}")
 
 # Define Dependency
 def get_db():
@@ -348,7 +368,7 @@ async def send_email_background(subject: str, email_to: str, body: str):
         print(f"Failed to send email: {e}")
 
 # --- Vapi Helper ---
-async def trigger_vapi_outbound_call(phone: str, message: str = None, user_email: str = None):
+async def trigger_vapi_outbound_call(phone: str, message: str = None, user_email: str = None, assistant_id: str = None):
     """
     Triggers an outbound call using Vapi.ai API
     """
@@ -359,7 +379,7 @@ async def trigger_vapi_outbound_call(phone: str, message: str = None, user_email
     
     # Vapi Call
     vapi_private_key = VAPI_PRIVATE_KEY
-    vapi_assistant_id = VAPI_ASSISTANT_ID
+    vapi_assistant_id = assistant_id if assistant_id else VAPI_ASSISTANT_ID
     vapi_phone_number_id = VAPI_PHONE_NUMBER_ID
 
     
@@ -492,6 +512,11 @@ async def read_dashboard():
     with open(os.path.join(BASE_DIR, "dashboard.html"), "r", encoding="utf-8") as f:
         return f.read()
 
+@app.get("/chat_only", response_class=HTMLResponse)
+async def read_chat_only():
+    with open(os.path.join(BASE_DIR, "chat_only.html"), "r", encoding="utf-8") as f:
+        return f.read()
+
 @app.post("/token")
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == form_data.username).first()
@@ -585,9 +610,13 @@ async def send_demo_call(
 
     # Direct Call - strict usage of Vapi Dashboard Settings
     try:
+        # Check if user has a custom assistant configured
+        user_config = db.query(AIConfig).filter(AIConfig.user_email == current_user.email).first()
+        assistant_id = user_config.vapi_assistant_id if user_config else None
+        
         # We pass a generic opening message just to start the call, 
         # but the Persona/System Prompt comes from Vapi now.
-        await trigger_vapi_outbound_call(phone, "Namaste! This is a demo call from Missed Call Saviour.", user_email=current_user.email)
+        await trigger_vapi_outbound_call(phone, "Hello! This is a demo call from Missed Call Saviour.", user_email=current_user.email, assistant_id=assistant_id)
         return {"success": True, "message": "Demo call initiated successfully."}
     except Exception as e:
         print(f"Error in demo call endpoint: {e}")
@@ -908,8 +937,10 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user), db
         CallLog.user_email == current_user.email
     ).count()
     
-    # 2. Estimate Revenue (Mock logic: Each call "saves" $200 potentially)
-    est_revenue = total_calls * 200
+    # 2. Estimate Revenue (Based on Industry Average $150 per lead saved)
+    # Each call handled is considered a lead saved.
+    LEAD_VALUE = 150 
+    est_revenue = total_calls * LEAD_VALUE
     
     # 3. Recent Activity (Filtered)
     recent_calls = db.query(CallLog).filter(
@@ -970,10 +1001,12 @@ class AIConfig(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_email = Column(String, index=True) # Linking by email for MVP simplicity
     business_name = Column(String, default="My Business")
-    greeting = Column(String, default="Namaste! Main kaise help kar sakta hoon?")
+    greeting = Column(String, default="Hello! How can I help you today?")
     persona = Column(String, default="friendly")
     owner_phone = Column(String, nullable=True)
     vapi_assistant_id = Column(String, nullable=True) # CRITICAL: Links User to their unique Vapi Agent # New Persona Field
+    eleven_labs_voice_id = Column(String, nullable=True) # Voice Cloning
+    eleven_labs_api_key = Column(String, nullable=True) # User's ElevenLabs Key
 
 # Table creation moved to startup_event
 
@@ -985,15 +1018,91 @@ async def get_ai_config(current_user: User = Depends(get_current_user), db: Sess
     if not config:
         return {
             "business_name": "My Business",
-            "greeting": "Namaste! Main My Business se bol raha hoon. Kya main aapki help kar sakta hoon?",
+            "greeting": "Hello! I'm calling from My Business. How can I assist you?",
             "persona": "friendly"
         }
     return {
         "business_name": config.business_name,
         "greeting": config.greeting,
         "persona": config.persona if hasattr(config, "persona") else "friendly",
-        "owner_phone": config.owner_phone if hasattr(config, "owner_phone") else ""
+        "owner_phone": config.owner_phone if hasattr(config, "owner_phone") else "",
+        "eleven_labs_voice_id": config.eleven_labs_voice_id if hasattr(config, "eleven_labs_voice_id") else "",
+        "eleven_labs_api_key": config.eleven_labs_api_key if hasattr(config, "eleven_labs_api_key") else ""
     }
+
+@app.post("/api/ai-config/clone-voice")
+async def clone_voice(
+    file: UploadFile = File(...),
+    eleven_labs_api_key: str = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Clones a user's voice using ElevenLabs Instant Voice Cloning API.
+    """
+    import httpx
+    
+    # 1. Get API Key (Priority: Form > User Config > Env)
+    api_key = eleven_labs_api_key
+    if not api_key:
+        config = db.query(AIConfig).filter(AIConfig.user_email == current_user.email).first()
+        if config and config.eleven_labs_api_key:
+            api_key = config.eleven_labs_api_key
+    
+    if not api_key:
+        api_key = os.getenv("ELEVEN_LABS_API_KEY") # System-wide fallback
+        
+    if not api_key:
+        raise HTTPException(status_code=400, detail="ElevenLabs API Key is required for voice cloning.")
+
+    # 2. Call ElevenLabs API
+    # API: POST https://api.elevenlabs.io/v1/voices/add
+    url = "https://api.elevenlabs.io/v1/voices/add"
+    headers = {
+        "xi-api-key": api_key
+    }
+    
+    # Read file content
+    content = await file.read()
+    
+    # Prepare payload for multipart/form-data
+    files = {
+        'files': (file.filename, content, file.content_type)
+    }
+    data = {
+        'name': f"Voice_{current_user.email[:10]}_{datetime.utcnow().strftime('%Y%m%d%H%M')}",
+        'description': f"Cloned via Missed Call Saviour Dashboard for {current_user.email}"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(url, headers=headers, data=data, files=files)
+            
+            if response.status_code != 200:
+                error_detail = response.json().get("detail", {}).get("message", response.text)
+                print(f"ElevenLabs Error: {response.text}")
+                raise HTTPException(status_code=response.status_code, detail=f"ElevenLabs Error: {error_detail}")
+            
+            result = response.json()
+            voice_id = result.get("voice_id")
+            
+            if not voice_id:
+                raise HTTPException(status_code=500, detail="No voice_id returned from ElevenLabs.")
+            
+            # 3. Update DB (Optional, but good for persistence)
+            config = db.query(AIConfig).filter(AIConfig.user_email == current_user.email).first()
+            if config:
+                config.eleven_labs_voice_id = voice_id
+                if eleven_labs_api_key:
+                    config.eleven_labs_api_key = eleven_labs_api_key
+                db.commit()
+            
+            return {"success": True, "voice_id": voice_id}
+            
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 @app.post("/api/ai-config")
 async def update_ai_config(
@@ -1011,13 +1120,23 @@ async def update_ai_config(
         
         config = db.query(AIConfig).filter(AIConfig.user_email == current_user.email).first()
         if not config:
-            config = AIConfig(user_email=current_user.email, business_name=business_name, greeting=greeting, persona=persona, owner_phone=owner_phone)
+            config = AIConfig(
+                user_email=current_user.email, 
+                business_name=business_name, 
+                greeting=greeting, 
+                persona=persona, 
+                owner_phone=owner_phone,
+                eleven_labs_voice_id=data.get("eleven_labs_voice_id"),
+                eleven_labs_api_key=data.get("eleven_labs_api_key")
+            )
             db.add(config)
         else:
             config.business_name = business_name
             config.greeting = greeting
             config.persona = persona
             config.owner_phone = owner_phone
+            config.eleven_labs_voice_id = data.get("eleven_labs_voice_id")
+            config.eleven_labs_api_key = data.get("eleven_labs_api_key")
         db.commit()
     except Exception as e:
         print(f"DB Update Error: {e}")
@@ -1081,6 +1200,15 @@ async def update_ai_config(
             },
             "serverUrl": webhook_url
         }
+
+        # Inject ElevenLabs Voice if provided
+        if config.eleven_labs_voice_id:
+            payload["voice"] = {
+                "provider": "eleven-labs",
+                "voiceId": config.eleven_labs_voice_id
+            }
+            if config.eleven_labs_api_key:
+                payload["voice"]["apiKey"] = config.eleven_labs_api_key
         
         async with httpx.AsyncClient() as client:
             if method == "POST":
@@ -1279,13 +1407,13 @@ async def delete_user(user_id: int, current_user: User = Depends(get_current_use
     if user.id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot delete your own admin account")
     
-    # Cascade delete logs? Or keep them? For now simple user delete.
     db.delete(user)
     db.commit()
     return {"message": "User deleted successfully"}
 
+
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 
 # --- Gemini AI Intelligence Routes ---
 
@@ -1341,6 +1469,7 @@ def cosine_similarity(v1, v2):
 
 @app.post("/api/analyze-chat")
 async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_db)):
+    print(f"DEBUG: Chat request from {request.session_id}: {request.message}")
     """
     Alex's intelligence with RAG (Supabase + Vector Logic).
     """
@@ -1474,9 +1603,10 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
 @app.post("/api/upload-call-recording")
 async def upload_call_recording(
     file: UploadFile = File(...), 
-    user_email: str = Form(...),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    user_email = current_user.email
     upload_dir = Path("uploads")
     upload_dir.mkdir(exist_ok=True)
     file_path = upload_dir / f"{datetime.now().timestamp()}_{file.filename}"
@@ -1485,7 +1615,27 @@ async def upload_call_recording(
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
-        summary = "Audio recording received. (Gemini Audio Analysis coming in v2)"
+        # 2. Analyze with Gemini (Audio Native)
+        summary = "Audio recording received."
+        transcript = "Transcript not provided."
+        
+        try:
+            if gemini_model:
+                # Upload to Gemini for native audio analysis
+                audio_file = genai.upload_file(path=str(file_path))
+                prompt = "Please provide a detailed transcript and a concise summary of this audio recording. Format: Transcript: [text] Summary: [text]"
+                response = gemini_model.generate_content([prompt, audio_file])
+                
+                res_text = response.text
+                if "Transcript:" in res_text and "Summary:" in res_text:
+                    transcript = res_text.split("Summary:")[0].replace("Transcript:", "").strip()
+                    summary = res_text.split("Summary:")[1].strip()
+                else:
+                    summary = res_text.strip()
+                    transcript = "Transcript integrated in summary."
+        except Exception as ai_e:
+            print(f"Gemini Audio Analysis failed: {ai_e}")
+            summary = "Audio recording received. (AI Analysis failed)"
         
         # 3. Save to DB
         new_call = CallLog(
@@ -1493,9 +1643,11 @@ async def upload_call_recording(
             call_type="app-recording",
             status="completed",
             summary=summary,
+            transcript=transcript,
             recording_url=str(file_path),
             duration=0,
-            user_email=user_email
+            user_email=user_email,
+            timestamp=datetime.utcnow() # Explicitly set for instant visibility
         )
         db.add(new_call)
         db.commit()
@@ -1594,8 +1746,33 @@ async def send_demo_call(
                 )
                 db.add(new_log)
                 db.commit()
-                return {"success": True, "call_id": response.json().get("id")}
+                await sse_manager.broadcast("update_dashboard")
+                return {"success": True, "message": "Demo call initiated successfully."}
             else:
-                 return JSONResponse(status_code=400, content={"details": f"Vapi Error: {response.text}"})
+                return JSONResponse(status_code=response.status_code, content={"details": response.text})
         except Exception as e:
-            return JSONResponse(status_code=500, content={"details": str(e)})
+            return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/api/calls/{call_id}/re-summarize")
+async def re_summarize_call(call_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    call = db.query(CallLog).filter(CallLog.id == call_id, CallLog.user_email == current_user.email).first()
+    if not call:
+        raise HTTPException(status_code=404, detail="Call not found")
+    
+    if not call.transcript or call.transcript == "Transcript not provided.":
+        # If no transcript, we can't summarize
+        raise HTTPException(status_code=400, detail="Cannot summarize without a transcript.")
+
+    try:
+        # Use Gemini to summarize the transcript
+        if gemini_model:
+            prompt = f"Please provide a concise summary of the following call transcript:\n\n{call.transcript}"
+            response = gemini_model.generate_content(prompt)
+            call.summary = response.text
+            db.commit()
+            await sse_manager.broadcast("update_dashboard")
+            return {"success": True, "summary": response.text}
+        else:
+            raise HTTPException(status_code=500, detail="Gemini AI not configured.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
