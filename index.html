@@ -612,7 +612,8 @@
     <!-- Nav -->
     <div class="container">
         <nav>
-            <a href="/" class="logo">Missed Call Saviour</a>
+            <a href="/" class="logo">Missed Call Saviour <span
+                    style="font-size: 0.7rem; opacity: 0.5;">v1.3.1</span></a>
             <div class="nav-links">
                 <a href="/" class="active">Home</a>
                 <a href="/roi">ROI Calculator</a>
@@ -978,8 +979,9 @@
                 if (data.reply) {
                     addMessage('ai', data.reply);
                 } else {
-                    const errorMsg = data.error || data.detail || 'Unknown error';
-                    addMessage('ai', 'Error: ' + errorMsg);
+                    const errorMsg = data.error || 'System Fault';
+                    const detail = data.detail ? `\n(${data.detail})` : '';
+                    addMessage('ai', errorMsg + detail);
                 }
             } catch (err) {
                 console.error(err);

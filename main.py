@@ -11,6 +11,7 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt
 import uvicorn
 import os
+import json
 import stripe
 import httpx
 import razorpay
@@ -1566,7 +1567,14 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
                 last_error = f"Connection error: {str(e)}"
                 continue
 
-    return JSONResponse(status_code=500, content={"error": f"Alex is offline. Reason: {last_error}"})
+    return JSONResponse(
+        status_code=500, 
+        content={
+            "error": "Alex is currently stuck.",
+            "detail": last_error,
+            "models_tried": models
+        }
+    )
 
 @app.post("/api/upload-call-recording")
 async def upload_call_recording(
