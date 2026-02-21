@@ -1589,7 +1589,7 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
                             db.add(ChatMessage(session_id=request.session_id, role="model", content=reply))
                             db.commit()
                         except: db.rollback()
-                        return {"reply": f"[Groq-Powered] {reply}"}
+                        return {"reply": reply}
                     else:
                         print(f"ALEX_LOG: Groq {g_model} failed with {resp.status_code}")
                 except Exception as e:
@@ -1621,7 +1621,7 @@ async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_d
                             db.add(ChatMessage(session_id=request.session_id, role="model", content=reply))
                             db.commit()
                         except: db.rollback()
-                        return {"reply": f"[GPT-Powered] {reply}"}
+                        return {"reply": reply}
                 except Exception as e:
                     print(f"ALEX_LOG: OpenAI {oa_model} Exception: {e}")
                     continue
