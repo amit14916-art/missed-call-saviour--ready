@@ -1469,138 +1469,93 @@ def cosine_similarity(v1, v2):
 
 @app.post("/api/analyze-chat")
 async def analyze_chat_message(request: ChatRequest, db: Session = Depends(get_db)):
-    print(f"DEBUG: Chat request from {request.session_id}: {request.message}")
     """
-    Alex's intelligence with RAG (Supabase + Vector Logic).
+    Alex's intelligence with RAG and strict role alternation for Gemini.
     """
     api_key = os.getenv("GEMINI_API_KEY", GEMINI_API_KEY).strip()
     if not api_key:
-        return {"error": "Gemini API Key missing. Please set GEMINI_API_KEY in Railway environment variables."}
+        return JSONResponse(status_code=500, content={"error": "GEMINI_API_KEY is not set in environment or config."})
     
-    # 1. RAG: Fetch relevant knowledge (Fail-safe)
-    current_emb = None
+    # 1. RAG context fetching
     rag_context = ""
     try:
         current_emb = await get_embedding(request.message, api_key)
-        
         if current_emb:
-            # Safe DB query for KnowledgeBase
-            try:
-                kb_items = db.query(KnowledgeBase).all()
-                scored_items = []
-                for item in kb_items:
-                    try:
-                        item_emb = json.loads(item.embedding)
-                        score = cosine_similarity(current_emb, item_emb)
-                        if score > 0.85: 
-                            scored_items.append(f"Q: {item.question}\nA: {item.answer}")
-                    except: continue
-                
-                if scored_items:
-                    rag_context = "\nRelevant Past Knowledge:\n" + "\n---\n".join(scored_items[:3])
-            except Exception as db_e:
-                print(f"RAG DB Read Error: {db_e}")
-                # Continue without RAG context
-                
-    except Exception as emb_e:
-         print(f"Embedding API Error: {emb_e}")
-         # Continue without RAG
+            kb_items = db.query(KnowledgeBase).all()
+            scored_items = []
+            for item in kb_items:
+                try:
+                    item_emb = json.loads(item.embedding)
+                    if cosine_similarity(current_emb, item_emb) > 0.85:
+                        scored_items.append(f"Q: {item.question}\nA: {item.answer}")
+                except: continue
+            if scored_items:
+                rag_context = "\nRelevant Knowledge:\n" + "\n---\n".join(scored_items[:3])
+    except Exception as e:
+        print(f"RAG Error: {e}")
 
-    # 2. Fetch Chat History (Memory)
+    # 2. Chat History with Role Alternation
     try:
         history = db.query(ChatMessage).filter(ChatMessage.session_id == request.session_id)\
-                    .order_by(ChatMessage.timestamp.desc()).limit(8).all()
+                    .order_by(ChatMessage.timestamp.desc()).limit(6).all()
         history.reverse()
-    except Exception as e:
-        print(f"Chat History Read Error: {e}")
+    except:
         history = []
-    
-    gemini_history = []
-    for msg in history:
-        role = "user" if msg.role == "user" else "model"
-        gemini_history.append({"role": role, "parts": [{"text": msg.content}]})
 
-    # Advanced System Prompt with RAG
-    system_persona = f"""
-    Role: You are 'Alex', the senior AI lead at 'Missed Call Saviour'. 
-    Personality: Charismatic, super-intelligent, helpful.
-    {rag_context}
+    system_persona = f"You are Alex, the senior AI at Missed Call Saviour. Be charismatic and helpful. {rag_context}"
     
-    Instructions: Use the Relevant Past Knowledge if it helps answer accurately.
-    """
+    # Construct alternating contents
+    contents = [
+        {"role": "user", "parts": [{"text": system_persona}]},
+        {"role": "model", "parts": [{"text": "Understood. I am Alex, ready to assist."}]}
+    ]
 
-    models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro", "gemini-pro"]
-    last_error = "Unknown Error"
+    last_role = "model"
+    for m in history:
+        current_role = "user" if m.role == "user" else "model"
+        if current_role != last_role:
+            contents.append({"role": current_role, "parts": [{"text": m.content}]})
+            last_role = current_role
     
+    # Ensure next is user
+    if last_role == "user":
+        contents.append({"role": "model", "parts": [{"text": "I see. How else can I help?"}]})
+    
+    contents.append({"role": "user", "parts": [{"text": request.message}]})
+
+    # 3. Call Gemini
+    models = ["gemini-1.5-flash", "gemini-pro"]
+    last_error = "Connection Failed"
+
     async with httpx.AsyncClient() as client:
-        # Save current user message (Best Effort)
+        # Save User Message
         try:
-            user_msg = ChatMessage(session_id=request.session_id, role="user", content=request.message)
-            db.add(user_msg)
+            db.add(ChatMessage(session_id=request.session_id, role="user", content=request.message))
             db.commit()
-        except Exception as db_e: 
-            print(f"Chat DB Error: {db_e}")
-            db.rollback()
+        except: db.rollback()
 
-        for model in models_to_try:
+        for model in models:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-            
-            payload = {
-                "contents": [
-                    {"role": "user", "parts": [{"text": system_persona}]},
-                    {"role": "model", "parts": [{"text": "Understood. Using my knowledge base and memory."}]},
-                    *gemini_history,
-                    {"role": "user", "parts": [{"text": request.message}]}
-                ]
-            }
-            
-            # Retry logic for Rate Limits
-            for attempt in range(3):
-                try:
-                    response = await client.post(url, json=payload, timeout=30.0)
+            try:
+                resp = await client.post(url, json={"contents": contents}, timeout=25.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    reply = data["candidates"][0]["content"]["parts"][0]["text"]
                     
-                    if response.status_code == 200:
-                        data = response.json()
-                        reply = data["candidates"][0]["content"]["parts"][0]["text"]
-                        
-                        # Save AI Reply
-                        try:
-                            ai_msg = ChatMessage(session_id=request.session_id, role="model", content=reply)
-                            db.add(ai_msg)
-                            if current_emb:
-                                new_kb = KnowledgeBase(question=request.message, answer=reply, embedding=json.dumps(current_emb))
-                                db.add(new_kb)
-                            db.commit()
-                        except Exception as db_write_e:
-                            print(f"DB Write Error: {db_write_e}")
-                            db.rollback()
-                            
-                        return {"reply": reply}
+                    # Save AI Reply
+                    try:
+                        db.add(ChatMessage(session_id=request.session_id, role="model", content=reply))
+                        db.commit()
+                    except: db.rollback()
                     
-                    elif response.status_code == 429:
-                        print(f"Gemini 429 (Rate Limit) on {model}, attempt {attempt+1}/3. Retrying in 2s...")
-                        await asyncio.sleep(2)
-                        continue
-                        
-                    elif response.status_code == 404:
-                        print(f"Gemini 404 (Not Found) for {model}. Skipping.")
-                        break # Break retry loop, try next model
-                        
-                    else:
-                        print(f"Gemini Error {response.status_code} on {model}: {response.text}")
-                        break # Break retry loop, try next model
-                        
-                except Exception as e:
-                    last_error = f"{model} Error: {str(e)}"
-                    print(f"Connection Error on {model}: {e}")
-                    # If it's an auth error, break immediately
-                    if "403" in str(e) or "API key" in str(e) or "401" in str(e):
-                         last_error = "API Key Invalid/Expired"
-                         break
-                    continue # Break retry loop, try next model
+                    return {"reply": reply}
+                else:
+                    last_error = f"API Error {resp.status_code}: {resp.text[:100]}"
+            except Exception as e:
+                last_error = str(e)
+                continue
 
-    # Final Fallback if all models fail
-    return {"reply": f"System Alert: I couldn't process your request. Reason: {last_error}. Please check your API Key configuration."}
+    return JSONResponse(status_code=500, content={"error": f"Alex is offline. Reason: {last_error}"})
 
 @app.post("/api/upload-call-recording")
 async def upload_call_recording(
