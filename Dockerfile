@@ -1,6 +1,6 @@
 # Use an official lightweight Python image.
 # https://hub.docker.com/_/python
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 # Set environment variables to prevent Python from writing pyc files to disc
 # and buffering stdout and stderr.
