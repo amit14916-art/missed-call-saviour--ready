@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 # Imports moved to robust loading section below
 RP_KEY = RP_WHISPER = RP_VLLM = RP_TTS = ""
+GEMINI_API_KEY = ""
 from fastapi import UploadFile, File
 import shutil
 from pathlib import Path
