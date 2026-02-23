@@ -1,40 +1,42 @@
 """
 Missed Call Saviour — Voice AI Pipeline
-Whisper (STT) + vLLM OpenAI (LLM) + Piper (TTS) via RunPod Serverless
+Whisper (STT via RunPod) + vLLM/Llama (LLM via RunPod) + gTTS (TTS, free)
+Cost target: ~₹0.95/min
 """
 import os
 import io
 import wave
 import json
 import base64
+import asyncio
 import httpx
 import audioop
+from gtts import gTTS
+from pydub import AudioSegment
 from google import genai
 
-# RunPod Configuration — matches .env variable names exactly
+# ── RunPod Configuration ─────────────────────────────────────────
 RP_KEY     = os.getenv("RUNPOD_API_KEY")
-RP_WHISPER = os.getenv("RUNPOD_WHISPER_ID")   or os.getenv("WHISPER_ENDPOINT_ID")
-RP_VLLM    = os.getenv("RUNPOD_VLLM_ID")      or os.getenv("LLAMA_ENDPOINT_ID")
-RP_TTS     = os.getenv("RUNPOD_TTS_ID")       or os.getenv("KOKORO_ENDPOINT_ID") or os.getenv("PIPER_ENDPOINT_ID")
+RP_WHISPER = os.getenv("RUNPOD_WHISPER_ID") or os.getenv("WHISPER_ENDPOINT_ID")
+RP_VLLM    = os.getenv("RUNPOD_VLLM_ID")    or os.getenv("LLAMA_ENDPOINT_ID")
+# Piper TTS removed — using free gTTS instead
 
-print(f"[Pipeline] Whisper: {RP_WHISPER}, vLLM: {RP_VLLM}, TTS: {RP_TTS}")
+print(f"[Pipeline] Whisper: {RP_WHISPER}, vLLM: {RP_VLLM}, TTS: gTTS (free)")
 
-# Gemini Fallback Configuration
+# ── Gemini Fallback ───────────────────────────────────────────────
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 genai_client = None
 if GEMINI_API_KEY:
     try:
         genai_client = genai.Client(api_key=GEMINI_API_KEY)
-        print("[Pipeline] Gemini fallback configured.")
+        print("[Pipeline] Gemini fallback ready.")
     except Exception as e:
         print(f"[Pipeline] Gemini init failed: {e}")
 
-# ── Core RunPod Caller ────────────────────────────────────────────
+# ── RunPod API Caller ─────────────────────────────────────────────
 async def runpod_call(endpoint_id: str, input_data: dict, timeout: float = 90.0):
-    """Call a RunPod /runsync endpoint and return parsed JSON."""
     if not RP_KEY or not endpoint_id:
         return {"error": "RunPod not configured"}
-
     url = f"https://api.runpod.ai/v2/{endpoint_id}/runsync"
     headers = {
         "Authorization": f"Bearer {RP_KEY}",
@@ -51,13 +53,12 @@ async def runpod_call(endpoint_id: str, input_data: dict, timeout: float = 90.0)
             print(f"[RunPod] Exception ({endpoint_id}): {e}")
             return {"error": str(e)}
 
-# ── Whisper STT ───────────────────────────────────────────────────
+# ── Whisper STT (RunPod) ──────────────────────────────────────────
 async def transcribe_audio(audio_bytes: bytes, language: str = "en") -> str:
-    """Convert audio bytes to text via Whisper on RunPod."""
     audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
     payload = {
         "audio_base64": audio_b64,
-        "model": "large-v3",
+        "model": "base",          # 'base' = 4x cheaper than 'large-v3', good enough for calls
         "language": language,
         "task": "transcribe",
         "temperature": 0.0
@@ -69,17 +70,15 @@ async def transcribe_audio(audio_bytes: bytes, language: str = "en") -> str:
             text = output.strip()
         else:
             text = (output.get("transcript", "") or output.get("text", "")).strip()
-
         if not text and "error" in resp:
             print(f"[Whisper] Error: {resp['error']}")
-
         print(f"[Whisper] '{text}'")
         return text
     except Exception as e:
         print(f"[Whisper] Exception: {e}")
         return ""
 
-# ── vLLM (OpenAI-compatible) LLM ─────────────────────────────────
+# ── vLLM / Llama (RunPod, OpenAI-compat) ─────────────────────────
 async def generate_reply(
     caller_message: str,
     business_name: str,
@@ -88,7 +87,6 @@ async def generate_reply(
     system_prompt: str,
     conversation_history: list
 ) -> str:
-    """Generate AI reply using vLLM OpenAI-compat endpoint on RunPod."""
     base_system = f"""You are {assistant_role} for {business_name}.
 Owner: {owner_name}
 {system_prompt}
@@ -104,11 +102,10 @@ Rules:
     messages.extend(conversation_history)
     messages.append({"role": "user", "content": caller_message})
 
-    # vLLM OpenAI-compatible format (chat/completions style)
     payload = {
         "model": "meta-llama/Llama-3.1-8B-Instruct",
         "messages": messages,
-        "max_tokens": 150,
+        "max_tokens": 120,
         "temperature": 0.7,
         "top_p": 0.9,
         "stop": ["<|eot_id|>", "<|end_of_text|>"]
@@ -116,8 +113,6 @@ Rules:
     try:
         resp = await runpod_call(RP_VLLM, payload)
         output = resp.get("output", {})
-
-        # OpenAI compat response format: output.choices[0].message.content
         if isinstance(output, dict) and "choices" in output:
             reply = output["choices"][0]["message"]["content"].strip()
         elif isinstance(output, dict):
@@ -126,14 +121,13 @@ Rules:
             reply = output.strip()
         else:
             reply = ""
-
         print(f"[vLLM] '{reply[:80]}'")
         return reply if reply else await _gemini_fallback(caller_message, base_system)
     except Exception as e:
         print(f"[vLLM] Exception: {e}")
         return await _gemini_fallback(caller_message, base_system)
 
-# ── Gemini Fallback ───────────────────────────────────────────────
+# ── Gemini LLM Fallback ───────────────────────────────────────────
 async def _gemini_fallback(prompt: str, system: str) -> str:
     try:
         if genai_client:
@@ -145,53 +139,39 @@ async def _gemini_fallback(prompt: str, system: str) -> str:
             return r.text
         return "Thank you for calling. The owner will call you back shortly."
     except Exception as e:
-        print(f"[Gemini] Fallback error: {e}")
+        print(f"[Gemini] Error: {e}")
         return "Thank you for calling. The owner will call you back shortly."
 
-# ── Piper TTS ─────────────────────────────────────────────────────
-async def synthesize_speech(text: str, voice: str = "en_US-lessac-medium") -> bytes:
-    """
-    Convert text to audio using Piper TTS on RunPod.
-    Docker image: runpod/ai-api-piper:latest
-    Payload: { "text": "...", "voice": "en_US-lessac-medium" }
-    Response: output.audio (base64 WAV)
-    """
-    # Map friendly names to Piper voice model names
-    voice_map = {
-        "af_sarah": "en_US-lessac-medium",
-        "friendly": "en_US-lessac-medium",
-        "professional": "en_US-ryan-medium",
-        "male": "en_US-ryan-medium",
-        "female": "en_US-lessac-medium",
-    }
-    piper_voice = voice_map.get(voice, voice if "_" in voice else "en_US-lessac-medium")
-
-    payload = {
-        "text": text,
-        "voice": piper_voice
-    }
+# ── gTTS (Free Text-to-Speech) ────────────────────────────────────
+def _gtts_to_wav(text: str, lang: str = "en") -> bytes:
+    """Synchronous gTTS → MP3 → WAV conversion (runs in thread pool)."""
     try:
-        resp = await runpod_call(RP_TTS, payload)
-        output = resp.get("output", {})
-
-        # Piper returns base64 audio in output.audio or output.audio_base64 or output directly
-        if isinstance(output, str):
-            audio_b64 = output
-        elif isinstance(output, dict):
-            audio_b64 = output.get("audio", "") or output.get("audio_base64", "")
-        else:
-            audio_b64 = ""
-
-        if audio_b64:
-            audio = base64.b64decode(audio_b64)
-            print(f"[Piper] TTS done: '{text[:50]}...'")
-            return audio
-
-        print(f"[Piper] No audio in response: {str(resp)[:200]}")
-        return b""
+        mp3_buf = io.BytesIO()
+        tts = gTTS(text=text, lang=lang, slow=False)
+        tts.write_to_fp(mp3_buf)
+        mp3_buf.seek(0)
+        # Convert MP3 → WAV via pydub (ffmpeg already in Dockerfile)
+        audio = AudioSegment.from_mp3(mp3_buf)
+        # Normalize to 8kHz mono 16-bit for telephony compatibility
+        audio = audio.set_frame_rate(8000).set_channels(1).set_sample_width(2)
+        wav_buf = io.BytesIO()
+        audio.export(wav_buf, format="wav")
+        wav_buf.seek(0)
+        return wav_buf.read()
     except Exception as e:
-        print(f"[Piper] Exception: {e}")
+        print(f"[gTTS] Error: {e}")
         return b""
+
+async def synthesize_speech(text: str, voice: str = "en") -> bytes:
+    """Async wrapper — gTTS runs in a thread so it doesn't block the event loop."""
+    if not text:
+        return b""
+    # Detect Hindi/Hinglish — use 'hi' lang code
+    lang = "hi" if any(ord(c) > 127 for c in text) else "en"
+    loop = asyncio.get_event_loop()
+    audio = await loop.run_in_executor(None, _gtts_to_wav, text, lang)
+    print(f"[gTTS] Done: '{text[:50]}'")
+    return audio
 
 # ── Pipeline Class ────────────────────────────────────────────────
 class MissedCallPipeline:
@@ -201,8 +181,8 @@ class MissedCallPipeline:
         owner_name: str,
         assistant_role: str = "Senior AI Representative",
         system_prompt: str = "",
-        greeting: str = "Hello!",
-        voice: str = "en_US-lessac-medium"
+        greeting: str = "Hello! How can I help you today?",
+        voice: str = "en"
     ):
         self.business_name = business_name
         self.owner_name = owner_name
@@ -215,13 +195,13 @@ class MissedCallPipeline:
 
     async def get_greeting_audio(self) -> bytes:
         print(f"[Pipeline] Starting for: {self.business_name}")
-        return await synthesize_speech(self.greeting, self.voice)
+        return await synthesize_speech(self.greeting)
 
     async def process_turn(self, audio_bytes: bytes):
         transcript = await transcribe_audio(audio_bytes)
         if not transcript:
             fallback_audio = await synthesize_speech(
-                "I didn't catch that, could you say that again?", self.voice
+                "I didn't catch that, could you say that again?"
             )
             return "", fallback_audio
 
@@ -237,15 +217,14 @@ class MissedCallPipeline:
         self.conversation_history.append({"role": "user", "content": transcript})
         self.conversation_history.append({"role": "assistant", "content": reply})
 
-        # Extract caller name if mentioned
         tl = transcript.lower()
-        if "my name is" in tl:
+        if "my name is" in tl or "mera naam" in tl:
             try:
-                self.caller_name = tl.split("my name is")[1].strip().split()[0].title()
+                self.caller_name = tl.split("my name is")[-1].strip().split()[0].title()
             except Exception:
                 pass
 
-        reply_audio = await synthesize_speech(reply, self.voice)
+        reply_audio = await synthesize_speech(reply)
         return transcript, reply_audio
 
     def get_summary(self) -> dict:

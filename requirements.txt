@@ -17,6 +17,7 @@ google-genai
 requests
 websockets>=13.0.0
 pydub
+gtts
 twilio
 soundfile==0.12.1
 numpy==1.26.4
