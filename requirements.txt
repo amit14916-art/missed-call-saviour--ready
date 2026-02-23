@@ -1,10 +1,10 @@
-fastapi # Cache Breaker 2026-02-23_13-25
+fastapi # Cache Breaker 2026-02-23_13-35
 uvicorn
-pydantic
+pydantic<2.0.0
 email-validator
 jinja2
 python-multipart
-fastapi-mail
+fastapi-mail>=1.4.1
 python-dotenv
 sqlalchemy
 psycopg2-binary
