@@ -104,28 +104,45 @@ class KnowledgeBase(Base):
 load_dotenv()
 
 # --- Robust Secrets Loading ---
+# Prioritize Environment Variables (Railway), fall back to config_secrets.py (Local)
 try:
-    from config_secrets import DATABASE_URL, VAPI_PRIVATE_KEY, VAPI_ASSISTANT_ID, VAPI_PHONE_NUMBER_ID, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, GEMINI_API_KEY, RUNPOD_API_KEY as RP_KEY, RUNPOD_WHISPER_ID as RP_WHISPER, RUNPOD_VLLM_ID as RP_VLLM, RUNPOD_TTS_ID as RP_TTS
-    print("Using hardcoded secrets from config_secrets.py")
+    from config_secrets import (
+        DATABASE_URL as CS_DATABASE_URL, 
+        VAPI_PRIVATE_KEY as CS_VAPI_PRIVATE_KEY, 
+        VAPI_ASSISTANT_ID as CS_VAPI_ASSISTANT_ID, 
+        VAPI_PHONE_NUMBER_ID as CS_VAPI_PHONE_NUMBER_ID, 
+        RAZORPAY_KEY_ID as CS_RAZORPAY_KEY_ID, 
+        RAZORPAY_KEY_SECRET as CS_RAZORPAY_KEY_SECRET, 
+        GEMINI_API_KEY as CS_GEMINI_API_KEY, 
+        RUNPOD_API_KEY as CS_RP_KEY, 
+        RUNPOD_WHISPER_ID as CS_RP_WHISPER, 
+        RUNPOD_VLLM_ID as CS_RP_VLLM, 
+        RUNPOD_TTS_ID as CS_RP_TTS
+    )
 except ImportError:
-    print("Using environment variables (config_secrets.py not found)")
-    DATABASE_URL = os.getenv("DATABASE_URL")
-    VAPI_PRIVATE_KEY = os.getenv("VAPI_PRIVATE_KEY")
-    VAPI_ASSISTANT_ID = os.getenv("VAPI_ASSISTANT_ID")
-    VAPI_PHONE_NUMBER_ID = os.getenv("VAPI_PHONE_NUMBER_ID")
-    RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
-    RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-    RP_KEY = RP_WHISPER = RP_VLLM = RP_TTS = ""
+    CS_DATABASE_URL = CS_VAPI_PRIVATE_KEY = CS_VAPI_ASSISTANT_ID = CS_VAPI_PHONE_NUMBER_ID = \
+    CS_RAZORPAY_KEY_ID = CS_RAZORPAY_KEY_SECRET = CS_GEMINI_API_KEY = CS_RP_KEY = \
+    CS_RP_WHISPER = CS_RP_VLLM = CS_RP_TTS = None
+
+DATABASE_URL = os.getenv("DATABASE_URL", CS_DATABASE_URL)
+VAPI_PRIVATE_KEY = os.getenv("VAPI_PRIVATE_KEY", CS_VAPI_PRIVATE_KEY)
+VAPI_ASSISTANT_ID = os.getenv("VAPI_ASSISTANT_ID", CS_VAPI_ASSISTANT_ID)
+VAPI_PHONE_NUMBER_ID = os.getenv("VAPI_PHONE_NUMBER_ID", CS_VAPI_PHONE_NUMBER_ID)
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", CS_RAZORPAY_KEY_ID)
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", CS_RAZORPAY_KEY_SECRET)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", CS_GEMINI_API_KEY or "")
+RP_KEY = os.getenv("RUNPOD_API_KEY", CS_RP_KEY or "")
+RP_WHISPER = os.getenv("RUNPOD_WHISPER_ID", CS_RP_WHISPER or "")
+RP_VLLM = os.getenv("RUNPOD_VLLM_ID", CS_RP_VLLM or "")
+RP_TTS = os.getenv("RUNPOD_TTS_ID", CS_RP_TTS or "")
 # Imports moved to top
 pass
 # ... (rest of imports)
 
 # Configure Gemini
 try:
-    FINAL_GEMINI_KEY = os.getenv("GEMINI_API_KEY", GEMINI_API_KEY).strip()
-    if FINAL_GEMINI_KEY:
-        genai.configure(api_key=FINAL_GEMINI_KEY)
+    if GEMINI_API_KEY:
+        genai.configure(api_key=GEMINI_API_KEY)
         gemini_model = genai.GenerativeModel('gemini-pro')
         print("Gemini AI Configured Successfully.")
     else:
@@ -268,8 +285,13 @@ pass
 # Startup Event for Migrations
 @app.on_event("startup")
 async def startup_event():
+    print(f"🚀 Application Starting... Database URL present: {'Yes' if DATABASE_URL else 'No'}")
     # Ensure tables exist
-    Base.metadata.create_all(bind=engine)
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("✅ Database tables verified/created.")
+    except Exception as e:
+        print(f"❌ Database error: {e}")
     
     # Auto-Migration: Add 'transcript' column if missing
     try:
