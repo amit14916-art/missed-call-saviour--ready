@@ -17,9 +17,23 @@ import httpx
 import razorpay
 from dotenv import load_dotenv
 import google.generativeai as genai
-# Imports moved to robust loading section below
-RP_KEY = RP_WHISPER = RP_VLLM = RP_TTS = ""
-GEMINI_API_KEY = ""
+# Load environment variables first
+load_dotenv()
+
+# --- Robust Secrets Loading ---
+try:
+    from config_secrets import DATABASE_URL, VAPI_PRIVATE_KEY, VAPI_ASSISTANT_ID, VAPI_PHONE_NUMBER_ID, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, GEMINI_API_KEY, RUNPOD_API_KEY as RP_KEY, RUNPOD_WHISPER_ID as RP_WHISPER, RUNPOD_VLLM_ID as RP_VLLM, RUNPOD_TTS_ID as RP_TTS
+    print("Using hardcoded secrets from config_secrets.py")
+except ImportError:
+    print("Using environment variables (config_secrets.py not found)")
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    VAPI_PRIVATE_KEY = os.getenv("VAPI_PRIVATE_KEY")
+    VAPI_ASSISTANT_ID = os.getenv("VAPI_ASSISTANT_ID")
+    VAPI_PHONE_NUMBER_ID = os.getenv("VAPI_PHONE_NUMBER_ID")
+    RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
+    RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    RP_KEY = RP_WHISPER = RP_VLLM = RP_TTS = ""
 from fastapi import UploadFile, File
 import shutil
 from pathlib import Path
@@ -32,12 +46,16 @@ import io
 
 # ... (rest of imports)
 
-# Configure Gemini (Prefer Environment Variable)
+# Configure Gemini
 try:
     FINAL_GEMINI_KEY = os.getenv("GEMINI_API_KEY", GEMINI_API_KEY).strip()
-    genai.configure(api_key=FINAL_GEMINI_KEY)
-    gemini_model = genai.GenerativeModel('gemini-pro')
-    print("Gemini AI Configured Successfully.")
+    if FINAL_GEMINI_KEY:
+        genai.configure(api_key=FINAL_GEMINI_KEY)
+        gemini_model = genai.GenerativeModel('gemini-pro')
+        print("Gemini AI Configured Successfully.")
+    else:
+        print("WARNING: GEMINI_API_KEY is empty.")
+        gemini_model = None
 except Exception as e:
     print(f"Failed to configure Gemini: {e}")
     gemini_model = None
@@ -90,21 +108,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 300
 pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# --- Database Setup ---
-
-try:
-    from config_secrets import DATABASE_URL, VAPI_PRIVATE_KEY, VAPI_ASSISTANT_ID, VAPI_PHONE_NUMBER_ID, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, GEMINI_API_KEY, RUNPOD_API_KEY as RP_KEY, RUNPOD_WHISPER_ID as RP_WHISPER, RUNPOD_VLLM_ID as RP_VLLM, RUNPOD_TTS_ID as RP_TTS
-    print("Using hardcoded secrets from config_secrets.py")
-except ImportError:
-    print("Using environment variables (config_secrets.py not found)")
-    RP_KEY = RP_WHISPER = RP_VLLM = RP_TTS = ""
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-    DATABASE_URL = os.getenv("DATABASE_URL")
-    VAPI_PRIVATE_KEY = os.getenv("VAPI_PRIVATE_KEY")
-    VAPI_ASSISTANT_ID = os.getenv("VAPI_ASSISTANT_ID")
-    VAPI_PHONE_NUMBER_ID = os.getenv("VAPI_PHONE_NUMBER_ID")
-    RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
-    RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
+# Database Setup (Variables already loaded above)
 
 # Initialize Razorpay Client
 try:
