@@ -13,7 +13,7 @@ httpx
 passlib[sha256_crypt]
 python-jose[cryptography]
 razorpay
-google-generativeai
+google-genai
 requests
 websockets
 pydub

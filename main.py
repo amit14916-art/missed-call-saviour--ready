@@ -27,7 +27,7 @@ import wave
 import sys
 import traceback
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google import genai
 
 # --- Database Setup ---
 Base = declarative_base()
@@ -80,6 +80,7 @@ class ChatMessage(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
 class AIConfig(Base):
     __tablename__ = "ai_configs"
+    __table_args__ = {'extend_existing': True}
     id = Column(Integer, primary_key=True, index=True)
     user_email = Column(String, index=True)
     business_name = Column(String, default="My Business")
@@ -142,15 +143,14 @@ pass
 # Configure Gemini
 try:
     if GEMINI_API_KEY:
-        genai.configure(api_key=GEMINI_API_KEY)
-        gemini_model = genai.GenerativeModel('gemini-pro')
-        print("Gemini AI Configured Successfully.")
+        genai_client = genai.Client(api_key=GEMINI_API_KEY)
+        print("Gemini AI Configured Successfully (New SDK).")
     else:
         print("WARNING: GEMINI_API_KEY is empty.")
-        gemini_model = None
+        genai_client = None
 except Exception as e:
     print(f"Failed to configure Gemini: {e}")
-    gemini_model = None
+    genai_client = None
 
 # Already loaded above
 pass
@@ -1888,11 +1888,14 @@ async def upload_call_recording(
         transcript = "Transcript not provided."
         
         try:
-            if gemini_model:
+            if genai_client:
                 # Upload to Gemini for native audio analysis
-                audio_file = genai.upload_file(path=str(file_path))
+                audio_file = genai_client.files.upload(path=str(file_path))
                 prompt = "Please provide a detailed transcript and a concise summary of this audio recording. Format: Transcript: [text] Summary: [text]"
-                response = gemini_model.generate_content([prompt, audio_file])
+                response = genai_client.models.generate_content(
+                    model='gemini-2.0-flash',
+                    contents=[prompt, audio_file]
+                )
                 
                 res_text = response.text
                 if "Transcript:" in res_text and "Summary:" in res_text:
@@ -1954,9 +1957,12 @@ async def re_summarize_call(call_id: int, current_user: User = Depends(get_curre
 
     try:
         # Use Gemini to summarize the transcript
-        if gemini_model:
+        if genai_client:
             prompt = f"Please provide a concise summary of the following call transcript:\n\n{call.transcript}"
-            response = gemini_model.generate_content(prompt)
+            response = genai_client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=prompt
+            )
             call.summary = response.text
             db.commit()
             await sse_manager.broadcast("update_dashboard")
