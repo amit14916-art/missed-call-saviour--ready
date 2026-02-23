@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Form, BackgroundTasks, Depends, HTTPException, Body, status, UploadFile, File, WebSocket, WebSocketDisconnect # Deploy Trigger: 2026-02-23_13-18
+from fastapi import FastAPI, Request, Form, BackgroundTasks, Depends, HTTPException, Body, status, UploadFile, File, WebSocket, WebSocketDisconnect # Deploy Trigger: 2026-02-23_13-25-REBUILD-FIX-TABLE-COLLISION
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,6 +35,7 @@ Base = declarative_base()
 # --- Database Models ---
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = {'extend_existing': True}
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
@@ -49,6 +50,7 @@ class User(Base):
 
 class Payment(Base):
     __tablename__ = "payments"
+    __table_args__ = {'extend_existing': True}
     id = Column(Integer, primary_key=True, index=True)
     user_email = Column(String, index=True)
     amount = Column(Float)
@@ -58,6 +60,7 @@ class Payment(Base):
 
 class CallLog(Base):
     __tablename__ = "call_logs"
+    __table_args__ = {'extend_existing': True}
     id = Column(Integer, primary_key=True, index=True)
     user_email = Column(String, index=True, nullable=True) 
     phone_number = Column(String)
@@ -73,6 +76,7 @@ class CallLog(Base):
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
+    __table_args__ = {'extend_existing': True}
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String, index=True)
     role = Column(String)
@@ -95,6 +99,7 @@ class AIConfig(Base):
 
 class KnowledgeBase(Base):
     __tablename__ = "knowledge_base"
+    __table_args__ = {'extend_existing': True}
     id = Column(Integer, primary_key=True, index=True)
     question = Column(String)
     answer = Column(String)
