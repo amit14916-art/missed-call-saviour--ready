@@ -148,6 +148,78 @@
             color: #fbbf24;
         }
 
+        /* AI Test Modal Styles */
+        .ai-test-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 10, 20, 0.9);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .ai-test-content {
+            width: 400px;
+            background: var(--bg-card);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .mic-btn {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: var(--primary-gradient);
+            border: none;
+            color: white;
+            font-size: 2.5rem;
+            cursor: pointer;
+            margin: 20px 0;
+            transition: all 0.3s;
+            box-shadow: 0 0 20px rgba(0, 114, 255, 0.4);
+        }
+
+        .mic-btn:active {
+            transform: scale(0.9);
+            background: #ef4444;
+        }
+
+        .mic-btn.recording {
+            animation: pulse-red 1.5s infinite;
+            background: #ef4444;
+        }
+
+        @keyframes pulse-red {
+            0% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 15px rgba(239, 68, 68, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
+
+        .chat-bubble {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            text-align: left;
+        }
+
         /* Dashboard Grid */
         .stat-grid {
             display: grid;
@@ -478,6 +550,24 @@
                             style="position: absolute; bottom: 0; right: 0; width: 100%; height: 4px; background: linear-gradient(90deg, #fbbf24, transparent);">
                         </div>
                     </div>
+                    <!-- TEST AI PIPELINE CARD -->
+                    <div class="stat-card glass-panel"
+                        style="position: relative; overflow: hidden; cursor: pointer; border: 1px solid rgba(139, 92, 246, 0.3);"
+                        onclick="openAITestModal()">
+                        <div
+                            style="display:flex; justify-content:space-between; align-items:start; margin-bottom: 10px;">
+                            <div class="stat-label">AI Sandbox</div>
+                            <div
+                                style="background:rgba(139, 92, 246, 0.2); padding:8px; border-radius:8px; font-size:1.2rem;">
+                                🤖</div>
+                        </div>
+                        <div class="stat-value" style="font-size: 1.5rem;">Talk to AI Now</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 5px;">Test Llama & Kokoro
+                            Live</div>
+                        <div
+                            style="position: absolute; bottom: 0; right: 0; width: 100%; height: 4px; background: linear-gradient(90deg, #8b5cf6, transparent);">
+                        </div>
+                    </div>
                 </div>
 
                 <!-- LIVE AI CONVERSATIONS SECTION -->
@@ -681,14 +771,19 @@
                         AI Configuration</h3>
                     <div class="form-group"><label>Business Name</label><input type="text" id="ai-business-name"
                             placeholder="e.g. Rahul's Gym"></div>
+                    <div class="form-group"><label>Owner Name</label><input type="text" id="ai-owner-name"
+                            placeholder="e.g. Rahul Sharma"></div>
+                    <div class="form-group"><label>Assistant Role</label><input type="text" id="ai-assistant-role"
+                            placeholder="e.g. Senior Wellness Consultant"></div>
                     <div class="form-group"><label>AI Greeting Message</label><textarea id="ai-greeting" rows="2"
                             placeholder="Namaste! Main Rahul's Gym se bol raha hu..."></textarea>
                     </div>
-                    <div class="form-group"><label>AI Persona (Tone)</label><select id="ai-persona"
+                    <div class="form-group"><label>AI Voice (Kokoro)</label><select id="ai-persona"
                             style="width: 100%; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--glass-border); padding: 12px 16px; border-radius: 12px; color: white;">
-                            <option value="friendly">Friendly (Indian English)</option>
-                            <option value="professional">Professional (Formal Indian)</option>
-                            <option value="urgent">High Energy (Sales Expert)</option>
+                            <option value="af_sarah">Sarah (Female - Friendly)</option>
+                            <option value="af_sky">Sky (Female - Natural)</option>
+                            <option value="am_adam">Adam (Male - Professional)</option>
+                            <option value="am_michael">Michael (Male - Warm)</option>
                         </select></div>
                     <div class="form-group"
                         style="background: rgba(255, 255, 255, 0.05); padding: 16px; border-radius: 12px;">
@@ -1563,6 +1658,8 @@
                         document.getElementById('ai-greeting').value = config.greeting || '';
                         document.getElementById('ai-persona').value = config.persona || 'friendly';
                         document.getElementById('ai-owner-phone').value = config.owner_phone || '';
+                        document.getElementById('ai-owner-name').value = config.owner_name || '';
+                        document.getElementById('ai-assistant-role').value = config.assistant_role || 'Senior AI Representative';
                         document.getElementById('ai-voice-id').value = config.eleven_labs_voice_id || '';
                         document.getElementById('ai-voice-api-key').value = config.eleven_labs_api_key || '';
                     }
@@ -1587,6 +1684,8 @@
                     greeting: document.getElementById('ai-greeting').value,
                     persona: document.getElementById('ai-persona').value,
                     owner_phone: document.getElementById('ai-owner-phone').value,
+                    owner_name: document.getElementById('ai-owner-name').value,
+                    assistant_role: document.getElementById('ai-assistant-role').value,
                     eleven_labs_voice_id: document.getElementById('ai-voice-id').value,
                     eleven_labs_api_key: document.getElementById('ai-voice-api-key').value
                 }
@@ -1823,6 +1922,109 @@
                 }
             }
 
+        </script>
+        <!-- AI TEST MODAL -->
+        <div id="ai-test-modal" class="ai-test-modal">
+            <div class="ai-test-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="margin: 0;">AI Test Sandbox</h3>
+                    <span onclick="closeAITestModal()" style="cursor: pointer; font-size: 1.5rem;">&times;</span>
+                </div>
+                <p id="ai-test-status" style="font-size: 0.85rem; color: #94a3b8;">Click the mic and start talking...
+                </p>
+
+                <div id="ai-chat-history"
+                    style="max-height: 200px; overflow-y: auto; margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px;">
+                    <!-- Chat messages here -->
+                </div>
+
+                <button id="mic-btn" class="mic-btn" onmousedown="startVoiceInput()" onmouseup="stopVoiceInput()"
+                    ontouchstart="startVoiceInput()" ontouchend="stopVoiceInput()">🎤</button>
+                <p style="font-size: 0.75rem; color: var(--text-muted);">Hold to speak, release to send</p>
+            </div>
+        </div>
+
+        <script>
+            let browserWS;
+            let browserRecorder;
+            let browserChunks = [];
+
+            function openAITestModal() {
+                document.getElementById('ai-test-modal').style.display = 'flex';
+                initBrowserAIWS();
+            }
+
+            function closeAITestModal() {
+                document.getElementById('ai-test-modal').style.display = 'none';
+                if (browserWS) browserWS.close();
+            }
+
+            function initBrowserAIWS() {
+                const status = document.getElementById('ai-test-status');
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                browserWS = new WebSocket(`${protocol}//${window.location.host}/ws/browser-ai`);
+
+                browserWS.onopen = () => status.innerText = "AI Ready! Hold the button to speak.";
+                browserWS.onclose = () => status.innerText = "Disconnected.";
+
+                browserWS.onmessage = async (event) => {
+                    const msg = JSON.parse(event.data);
+                    if (msg.event === 'audio' || msg.event === 'audio_reply') {
+                        if (msg.transcript) appendMsg(`You: ${msg.transcript}`);
+                        if (msg.payload) playBase64Audio(msg.payload);
+                    }
+                };
+            }
+
+            async function startVoiceInput() {
+                const btn = document.getElementById('mic-btn');
+                btn.classList.add('recording');
+                browserChunks = [];
+
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    browserRecorder = new MediaRecorder(stream);
+                    browserRecorder.ondataavailable = e => browserChunks.push(e.data);
+                    browserRecorder.onstop = async () => {
+                        const audioBlob = new Blob(browserChunks, { type: 'audio/wav' });
+                        const reader = new FileReader();
+                        reader.readAsDataURL(audioBlob);
+                        reader.onloadend = () => {
+                            const base64Audio = reader.result.split(',')[1];
+                            if (browserWS && browserWS.readyState === WebSocket.OPEN) {
+                                browserWS.send(JSON.stringify({
+                                    event: "audio_input",
+                                    payload: base64Audio
+                                }));
+                            }
+                        };
+                    };
+                    browserRecorder.start();
+                } catch (err) {
+                    alert("Microphone access denied or not available.");
+                    btn.classList.remove('recording');
+                }
+            }
+
+            function stopVoiceInput() {
+                const btn = document.getElementById('mic-btn');
+                btn.classList.remove('recording');
+                if (browserRecorder && browserRecorder.state !== "inactive") browserRecorder.stop();
+            }
+
+            function appendMsg(text) {
+                const history = document.getElementById('ai-chat-history');
+                const div = document.createElement('div');
+                div.className = 'chat-bubble';
+                div.innerText = text;
+                history.appendChild(div);
+                history.scrollTop = history.scrollHeight;
+            }
+
+            function playBase64Audio(b64) {
+                const audio = new Audio("data:audio/wav;base64," + b64);
+                audio.play();
+            }
         </script>
         <script src="/chatbot.js"></script>
 </body>

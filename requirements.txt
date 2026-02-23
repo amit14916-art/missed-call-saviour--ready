@@ -1,4 +1,4 @@
-fastapi # Cache Breaker 2026-02-23_15-30
+fastapi # REBUILD_CACHE_BREAKER: 2026-02-23_18-35-MODULAR-PIPELINE
 uvicorn
 pydantic>=2.7.0
 email-validator
@@ -9,11 +9,14 @@ python-dotenv
 sqlalchemy
 psycopg2-binary
 stripe
-httpx
+httpx==0.27.2
 passlib[sha256_crypt]
 python-jose[cryptography]
 razorpay
 google-genai
 requests
-websockets
+websockets==12.0
 pydub
+twilio
+soundfile==0.12.1
+numpy==1.26.4

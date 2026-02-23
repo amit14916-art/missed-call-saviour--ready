@@ -18,6 +18,7 @@ import json
 import stripe
 import httpx
 import razorpay
+from notification import send_owner_notification
 import shutil
 import base64
 import audioop
@@ -27,7 +28,16 @@ import wave
 import sys
 import traceback
 from dotenv import load_dotenv
+from twilio.rest import Client as TwilioClient
 from google import genai
+from voice_pipeline import MissedCallPipeline
+from call_handler import handle_telnyx_webhook, handle_call_websocket
+from twilio_handler import handle_twilio_webhook, handle_twilio_websocket
+from exotel_handler import handle_exotel_webhook, handle_exotel_websocket
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
 # --- Database Setup ---
 Base = declarative_base()
@@ -73,6 +83,8 @@ class CallLog(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     vapi_call_id = Column(String, nullable=True)
     monitor_url = Column(String, nullable=True)
+    telnyx_call_control_id = Column(String, nullable=True)
+    caller_name = Column(String, nullable=True)
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
@@ -96,6 +108,7 @@ class AIConfig(Base):
     vapi_assistant_id = Column(String, nullable=True)
     eleven_labs_voice_id = Column(String, nullable=True)
     eleven_labs_api_key = Column(String, nullable=True)
+    owner_name = Column(String, nullable=True)
 
 class KnowledgeBase(Base):
     __tablename__ = "knowledge_base"
@@ -110,37 +123,19 @@ class KnowledgeBase(Base):
 load_dotenv()
 
 # --- Robust Secrets Loading ---
-# Prioritize Environment Variables (Railway), fall back to config_secrets.py (Local)
-try:
-    from config_secrets import (
-        DATABASE_URL as CS_DATABASE_URL, 
-        VAPI_PRIVATE_KEY as CS_VAPI_PRIVATE_KEY, 
-        VAPI_ASSISTANT_ID as CS_VAPI_ASSISTANT_ID, 
-        VAPI_PHONE_NUMBER_ID as CS_VAPI_PHONE_NUMBER_ID, 
-        RAZORPAY_KEY_ID as CS_RAZORPAY_KEY_ID, 
-        RAZORPAY_KEY_SECRET as CS_RAZORPAY_KEY_SECRET, 
-        GEMINI_API_KEY as CS_GEMINI_API_KEY, 
-        RUNPOD_API_KEY as CS_RP_KEY, 
-        RUNPOD_WHISPER_ID as CS_RP_WHISPER, 
-        RUNPOD_VLLM_ID as CS_RP_VLLM, 
-        RUNPOD_TTS_ID as CS_RP_TTS
-    )
-except ImportError:
-    CS_DATABASE_URL = CS_VAPI_PRIVATE_KEY = CS_VAPI_ASSISTANT_ID = CS_VAPI_PHONE_NUMBER_ID = \
-    CS_RAZORPAY_KEY_ID = CS_RAZORPAY_KEY_SECRET = CS_GEMINI_API_KEY = CS_RP_KEY = \
-    CS_RP_WHISPER = CS_RP_VLLM = CS_RP_TTS = None
-
-DATABASE_URL = os.getenv("DATABASE_URL", CS_DATABASE_URL)
-VAPI_PRIVATE_KEY = os.getenv("VAPI_PRIVATE_KEY", CS_VAPI_PRIVATE_KEY)
-VAPI_ASSISTANT_ID = os.getenv("VAPI_ASSISTANT_ID", CS_VAPI_ASSISTANT_ID)
-VAPI_PHONE_NUMBER_ID = os.getenv("VAPI_PHONE_NUMBER_ID", CS_VAPI_PHONE_NUMBER_ID)
-RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", CS_RAZORPAY_KEY_ID)
-RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", CS_RAZORPAY_KEY_SECRET)
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", CS_GEMINI_API_KEY or "")
-RP_KEY = os.getenv("RUNPOD_API_KEY", CS_RP_KEY or "")
-RP_WHISPER = os.getenv("RUNPOD_WHISPER_ID", CS_RP_WHISPER or "")
-RP_VLLM = os.getenv("RUNPOD_VLLM_ID", CS_RP_VLLM or "")
-RP_TTS = os.getenv("RUNPOD_TTS_ID", CS_RP_TTS or "")
+# Strictly use Environment Variables for Production (Railway)
+# config_secrets.py removed for sensitive keys to prevent security leaks
+DATABASE_URL = os.getenv("DATABASE_URL")
+VAPI_PRIVATE_KEY = os.getenv("VAPI_PRIVATE_KEY")
+VAPI_ASSISTANT_ID = os.getenv("VAPI_ASSISTANT_ID")
+VAPI_PHONE_NUMBER_ID = os.getenv("VAPI_PHONE_NUMBER_ID")
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+RP_KEY = os.getenv("RUNPOD_API_KEY")
+RP_WHISPER = os.getenv("WHISPER_ENDPOINT_ID") or os.getenv("RUNPOD_WHISPER_ID")
+RP_VLLM = os.getenv("LLAMA_ENDPOINT_ID") or os.getenv("RUNPOD_VLLM_ID")
+RP_TTS = os.getenv("KOKORO_ENDPOINT_ID") or os.getenv("RUNPOD_TTS_ID")
 # Imports moved to top
 pass
 # ... (rest of imports)
@@ -157,7 +152,32 @@ except Exception as e:
     print(f"Failed to configure Gemini: {e}")
     genai_client = None
 
-# Already loaded above
+TELNYX_API_KEY = os.getenv("TELNYX_API_KEY")
+TELNYX_HEADERS = {
+    "Authorization": f"Bearer {TELNYX_API_KEY}",
+    "Content-Type": "application/json"
+}
+
+# Configure Twilio
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
+
+try:
+    if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
+        twilio_client = TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        print("Twilio Client Configured Successfully.")
+    else:
+        twilio_client = None
+        print("WARNING: Twilio Keys (SID/TOKEN) missing.")
+except Exception as e:
+    print(f"Failed to configure Twilio: {e}")
+    twilio_client = None
+
+# Configure Exotel
+EXOTEL_SID = os.getenv("EXOTEL_SID")
+EXOTEL_API_KEY = os.getenv("EXOTEL_API_KEY")
+EXOTEL_API_TOKEN = os.getenv("EXOTEL_API_TOKEN")
 pass
 
 # Imports moved to top
@@ -259,26 +279,7 @@ async def get_debug_status():
         "ai_engine": "Self-Hosted (RunPod)"
     }
 
-# --- RunPod Helper ---
-RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY", RP_KEY)
-RUNPOD_WHISPER_ID = os.getenv("RUNPOD_WHISPER_ID", RP_WHISPER)
-RUNPOD_VLLM_ID = os.getenv("RUNPOD_VLLM_ID", RP_VLLM)
-RUNPOD_TTS_ID = os.getenv("RUNPOD_TTS_ID", RP_TTS)
-
-async def runpod_call(endpoint_id, input_data):
-    if not RUNPOD_API_KEY or not endpoint_id:
-        return {"error": "RunPod not configured"}
-    
-    url = f"https://api.runpod.ai/v2/{endpoint_id}/runsync"
-    headers = {
-        "Authorization": f"Bearer {RUNPOD_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(url, json={"input": input_data}, headers=headers)
-        return resp.json()
-
-# AI Models moved to top to support webhooks
+# AI logic moved to voice_pipeline.py
 pass
 
 # Table creation moved to startup_event
@@ -325,6 +326,20 @@ async def startup_event():
                 conn.execute(text("ALTER TABLE call_logs ADD COLUMN monitor_url TEXT"))
                 conn.commit()
             print("SUCCESS: 'monitor_url' added!", flush=True)
+            
+        if 'telnyx_call_control_id' not in columns:
+            print("INFO: 'telnyx_call_control_id' column missing. Attempting auto-migration...", flush=True)
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE call_logs ADD COLUMN telnyx_call_control_id VARCHAR(255)"))
+                conn.commit()
+            print("SUCCESS: 'telnyx_call_control_id' added!", flush=True)
+            
+        if 'caller_name' not in columns:
+            print("INFO: 'caller_name' column missing. Attempting auto-migration...", flush=True)
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE call_logs ADD COLUMN caller_name VARCHAR(100)"))
+                conn.commit()
+            print("SUCCESS: 'caller_name' added!", flush=True)
             
         # Auto-Migration: Add 'is_admin' to users if missing
         columns_users = [col['name'] for col in inspector.get_columns('users')]
@@ -388,6 +403,14 @@ async def startup_event():
                  if "eleven_labs_api_key" not in columns_ai:
                      print("Migrating: Adding eleven_labs_api_key to ai_configs...")
                      conn.execute(text("ALTER TABLE ai_configs ADD COLUMN eleven_labs_api_key VARCHAR(255)"))
+                     conn.commit()
+                 if "assistant_role" not in columns_ai:
+                     print("Migrating: Adding assistant_role to ai_configs...")
+                     conn.execute(text("ALTER TABLE ai_configs ADD COLUMN assistant_role VARCHAR(100)"))
+                     conn.commit()
+                 if "owner_name" not in columns_ai:
+                     print("Migrating: Adding owner_name to ai_configs...")
+                     conn.execute(text("ALTER TABLE ai_configs ADD COLUMN owner_name VARCHAR(100)"))
                      conn.commit()
 
     except Exception as e:
@@ -583,98 +606,103 @@ async def read_root():
 async def sse_endpoint(request: Request):
     return StreamingResponse(sse_manager.connect(request), media_type="text/event-stream")
 
-# --- Twilio Real-Time AI Orchestration ---
+# Telnyx routes modularized in call_handler.py
+@app.post("/telnyx-webhook")
+async def telnyx_webhook(request: Request, db: Session = Depends(get_db)):
+    print("🔔 Telnyx Webhook POST received")
+    return await handle_telnyx_webhook(request, db)
 
-@app.websocket("/api/twilio/stream")
-async def twilio_stream(websocket: WebSocket, db: Session = Depends(get_db)):
-    """
-    Handles Twilio Media Streams for real-time AI voice interaction.
-    """
-    # Imports moved to top
-    pass
+@app.websocket("/ws/call/{call_control_id}")
+async def call_ws(websocket: WebSocket, call_control_id: str, db: Session = Depends(get_db)):
+    await handle_call_websocket(websocket, call_control_id, db)
 
+# Twilio routes
+@app.post("/twilio-webhook")
+async def twilio_webhook(request: Request, db: Session = Depends(get_db)):
+    print("🔔 Twilio Webhook received")
+    return await handle_twilio_webhook(request, db)
+
+@app.websocket("/ws/twilio")
+async def twilio_ws(websocket: WebSocket, db: Session = Depends(get_db)):
+    await handle_twilio_websocket(websocket, db)
+
+# Exotel routes
+@app.post("/exotel-webhook")
+async def exotel_webhook(request: Request, db: Session = Depends(get_db)):
+    print("🔔 Exotel Webhook received")
+    return await handle_exotel_webhook(request, db)
+
+@app.websocket("/ws/exotel")
+async def exotel_ws(websocket: WebSocket, db: Session = Depends(get_db)):
+    return await handle_exotel_websocket(websocket, db)
+
+@app.websocket("/ws/browser-ai")
+async def browser_ai_ws(websocket: WebSocket, db: Session = Depends(get_db)):
     await websocket.accept()
-    print("🚀 Twilio Stream Connected")
+    print("🖥️ Browser AI Socket Connected")
     
-    stream_sid = None
-    audio_buffer = io.BytesIO()
-    
+    config = db.query(AIConfig).first()
+    if not config:
+        await websocket.send_json({"error": "AI not configured"})
+        await websocket.close()
+        return
+
+    pipeline = MissedCallPipeline(
+        business_name = config.business_name or "the business",
+        owner_name    = getattr(config, "owner_name", "the owner"),
+        assistant_role = getattr(config, "assistant_role", "Senior AI Representative"),
+        system_prompt = config.system_prompt or "",
+        greeting      = config.greeting or f"Hi! I'm your AI. How can I help you today?",
+        voice         = config.persona or "af_sarah"
+    )
+
+    # Sending greeting audio
+    greeting_audio = await pipeline.get_greeting_audio()
+    if greeting_audio:
+        await websocket.send_json({
+            "event": "audio",
+            "payload": base64.b64encode(greeting_audio).decode("utf-8")
+        })
+
     try:
         while True:
-            message = await websocket.receive_text()
-            data = json.loads(message)
+            data = await websocket.receive_text()
+            msg = json.loads(data)
             
-            if data['event'] == 'start':
-                stream_sid = data['start']['streamSid']
-                print(f"Stream Started: {stream_sid}")
+            if msg.get("event") == "audio_input":
+                audio_payload = msg.get("payload")
+                audio_bytes = base64.b64decode(audio_payload)
                 
-            elif data['event'] == 'media':
-                payload = data['media']['payload']
-                audio_chunk = base64.b64decode(payload)
-                audio_buffer.write(audio_chunk)
+                # Use pipeline to process turn
+                transcript, reply_audio = await pipeline.process_turn(audio_bytes)
                 
-                # Buffer enough audio (e.g., 2 seconds for better context)
-                if audio_buffer.tell() > 16000: 
-                    audio_buffer.seek(0)
-                    raw_audio = audio_buffer.read()
-                    audio_buffer = io.BytesIO()
-                    
-                    # Convert mulaw to wav for Whisper
-                    try:
-                        pcm_raw = audioop.ulaw2lin(raw_audio, 2)
-                        wav_mem = io.BytesIO()
-                        with wave.open(wav_mem, 'wb') as wav_file:
-                            wav_file.setnchannels(1)
-                            wav_file.setsampwidth(2)
-                            wav_file.setframerate(8000)
-                            wav_file.writeframes(pcm_raw)
-                        audio_b64 = base64.b64encode(wav_mem.getvalue()).decode('utf-8')
-                        
-                        # 1. Transcribe (Whisper)
-                        whisper_res = await runpod_call(RUNPOD_WHISPER_ID, {"audio_base64": audio_b64})
-                        transcript = whisper_res.get("output", {}).get("transcript", "")
-                        
-                        if transcript.strip():
-                            print(f"Transcribed: {transcript}")
-                            
-                            # 2. Logic (vLLM)
-                            prompt = f"User says: {transcript}\nAI Agent Response:"
-                            vllm_res = await runpod_call(RUNPOD_VLLM_ID, {"prompt": prompt})
-                            ai_reply = vllm_res.get("output", {}).get("response", "")
-                            
-                            if ai_reply:
-                                print(f"AI Reply: {ai_reply}")
-                                
-                                # 3. TTS (Piper)
-                                tts_res = await runpod_call(RUNPOD_TTS_ID, {"text": ai_reply})
-                                out_audio_b64 = tts_res.get("output", {}).get("audio_base64", "")
-                                
-                                if out_audio_b64:
-                                    # Convert WAV back to mulaw for Twilio
-                                    audio_data = base64.b64decode(out_audio_b64)
-                                    wav_seg = AudioSegment.from_file(io.BytesIO(audio_data))
-                                    resampled = wav_seg.set_frame_rate(8000).set_channels(1)
-                                    mulaw_bytes = audioop.lin2ulaw(resampled.raw_data, resampled.sample_width)
-                                    
-                                    await websocket.send_json({
-                                        "event": "media",
-                                        "streamSid": stream_sid,
-                                        "media": {
-                                            "payload": base64.b64encode(mulaw_bytes).decode('utf-8')
-                                        }
-                                    })
-                    except Exception as inner_e:
-                        print(f"Pipeline Processing Error: {inner_e}")
-
-            elif data['event'] == 'stop':
-                print(f"Stream Stopped: {stream_sid}")
-                break
+                res = {
+                    "event": "audio_reply",
+                    "transcript": transcript,
+                    "payload": base64.b64encode(reply_audio).decode("utf-8") if reply_audio else None
+                }
+                await websocket.send_json(res)
                 
     except WebSocketDisconnect:
-        print("Twilio Stream Disconnected")
+        print("🖥️ Browser AI Socket Disconnected")
     except Exception as e:
-        print(f"Stream Error: {e}")
+        print(f"Browser AI Error: {e}")
 
+@app.get("/api/call-logs")
+async def get_call_logs(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
+    logs = db.query(CallLog).order_by(CallLog.id.desc()).offset(skip).limit(limit).all()
+    return [
+        {
+            "id":            log.id,
+            "caller_number": log.phone_number,
+            "caller_name":   log.caller_name,
+            "status":        log.status,
+            "duration":      log.duration,
+            "transcript":    json.loads(log.transcript) if log.transcript and log.transcript.startswith("[") else log.transcript,
+            "created_at":    str(log.timestamp)
+        }
+        for log in logs
+    ]
 
 @app.get("/chatbot.js")
 async def read_chatbot_js():
@@ -777,19 +805,44 @@ async def signup(background_tasks: BackgroundTasks, email: str = Form(...), pass
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/twilio/twiml")
-async def twilio_twiml():
-    """Returns TwiML to start a Media Stream."""
-    # import moved to top
-    pass
+async def twilio_twiml(request: Request, user_email: str = "amit14916@gmail.com"):
+    """Returns TwiML to start a Media Stream with user context."""
+    form_data = await request.form()
+    caller = form_data.get('From', 'Unknown')
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
     <Response>
         <Start>
-            <Stream url="wss://{DOMAIN.split('://')[-1]}/api/twilio/stream" />
+            <Stream url="wss://{DOMAIN.split('://')[-1]}/api/twilio/stream?user_email={user_email}&amp;caller={caller}" />
         </Start>
-        <Say>Please wait while I connect you to the AI agent.</Say>
-        <Pause length="30"/>
+        <Say>Connecting to AI...</Say>
+        <Pause length="40"/>
     </Response>"""
     return Response(content=twiml, media_type="application/xml")
+
+async def trigger_twilio_outbound_call(to_phone: str, user_email: str):
+    """
+    Triggers an outbound call via Twilio that connects to our local Media Stream.
+    This replaces the need for Vapi's outbound trigger.
+    """
+    if not twilio_client or not TWILIO_PHONE_NUMBER:
+        print("Error: Twilio not configured for outbound calls.")
+        return False
+        
+    try:
+        # TwiML URL that points to our /api/twilio/twiml endpoint
+        # We pass the user_email so the TwiML knows who is calling
+        twiml_url = f"{DOMAIN}/api/twilio/twiml?user_email={user_email}"
+        
+        call = twilio_client.calls.create(
+            to=to_phone,
+            from_=TWILIO_PHONE_NUMBER,
+            url=twiml_url
+        )
+        print(f"✅ Twilio Outbound Call Triggered: {call.sid}")
+        return call.sid
+    except Exception as e:
+        print(f"❌ Twilio Outbound Error: {e}")
+        return False
 
 @app.post("/api/send-demo-call")
 async def send_demo_call(
@@ -823,14 +876,19 @@ async def send_demo_call(
         print(f"Failed to log initial call: {e}")
 
     if engine_type == "self-hosted":
-        return {"success": True, "message": "Self-hosted engine ready. Please call your configured Twilio number."}
+        # Direct Twilio Orchestration (Pipecat style)
+        success = await trigger_twilio_outbound_call(phone, current_user.email)
+        if success:
+            return {"success": True, "message": "Self-hosted demo call initiated via Twilio."}
+        else:
+            return JSONResponse(status_code=500, content={"error": "Twilio orchestration failed. Check server logs."})
 
-    # Default Vapi Trigger
+    # Default Vapi Trigger (Legacy)
     try:
         user_config = db.query(AIConfig).filter(AIConfig.user_email == current_user.email).first()
         assistant_id = user_config.vapi_assistant_id if user_config else None
         await trigger_vapi_outbound_call(phone, "Hello! This is a demo call from Missed Call Saviour.", user_email=current_user.email, assistant_id=assistant_id)
-        return {"success": True, "message": "Demo call initiated successfully."}
+        return {"success": True, "message": "Vapi demo call initiated successfully."}
     except Exception as e:
         print(f"Error in demo call endpoint: {e}")
         return JSONResponse(status_code=500, content={"error": "Failed to initiate call", "details": str(e)})
@@ -1260,6 +1318,8 @@ async def get_ai_config(current_user: User = Depends(get_current_user), db: Sess
         "greeting": config.greeting,
         "persona": config.persona if hasattr(config, "persona") else "friendly",
         "owner_phone": config.owner_phone if hasattr(config, "owner_phone") else "",
+        "owner_name": config.owner_name if hasattr(config, "owner_name") else "",
+        "assistant_role": config.assistant_role if hasattr(config, "assistant_role") else "Senior AI Representative",
         "eleven_labs_voice_id": config.eleven_labs_voice_id if hasattr(config, "eleven_labs_voice_id") else "",
         "eleven_labs_api_key": config.eleven_labs_api_key if hasattr(config, "eleven_labs_api_key") else ""
     }
@@ -1361,6 +1421,8 @@ async def update_ai_config(
                 greeting=greeting, 
                 persona=persona, 
                 owner_phone=owner_phone,
+                owner_name=data.get("owner_name"),
+                assistant_role=data.get("assistant_role", "Senior AI Representative"),
                 eleven_labs_voice_id=data.get("eleven_labs_voice_id"),
                 eleven_labs_api_key=data.get("eleven_labs_api_key")
             )
@@ -1370,6 +1432,8 @@ async def update_ai_config(
             config.greeting = greeting
             config.persona = persona
             config.owner_phone = owner_phone
+            config.owner_name = data.get("owner_name")
+            config.assistant_role = data.get("assistant_role")
             config.eleven_labs_voice_id = data.get("eleven_labs_voice_id")
             config.eleven_labs_api_key = data.get("eleven_labs_api_key")
         db.commit()
@@ -1518,7 +1582,7 @@ async def android_trigger_callback(
         
     # 3. Call Vapi (Outbound)
     try:
-        from config_secrets import VAPI_PHONE_NUMBER_ID, VAPI_PRIVATE_KEY
+        # Using global VAPI keys loaded from environment variables
         
         url = "https://api.vapi.ai/call"
         headers = {
@@ -1892,26 +1956,29 @@ async def upload_call_recording(
         summary = "Audio recording received."
         transcript = "Transcript not provided."
         
+        # 2. AI Analysis (Whisper for Transcript, Llama for Summary)
+        summary = "Summarizing..."
+        transcript = "Transcribing..."
+        
         try:
-            if genai_client:
-                # Upload to Gemini for native audio analysis
-                audio_file = genai_client.files.upload(path=str(file_path))
-                prompt = "Please provide a detailed transcript and a concise summary of this audio recording. Format: Transcript: [text] Summary: [text]"
-                response = genai_client.models.generate_content(
-                    model='gemini-2.0-flash',
-                    contents=[prompt, audio_file]
-                )
-                
-                res_text = response.text
-                if "Transcript:" in res_text and "Summary:" in res_text:
-                    transcript = res_text.split("Summary:")[0].replace("Transcript:", "").strip()
-                    summary = res_text.split("Summary:")[1].strip()
-                else:
-                    summary = res_text.strip()
-                    transcript = "Transcript integrated in summary."
+            # Step A: Transcribe with Whisper
+            with open(file_path, "rb") as audio_f:
+                audio_b64 = base64.b64encode(audio_f.read()).decode("utf-8")
+            
+            whisper_res = await runpod_call(RUNPOD_WHISPER_ID, {"audio_base64": audio_b64})
+            transcript = whisper_res.get("output", {}).get("transcript", "Transcript unavailable.")
+            
+            if transcript and transcript != "Transcript unavailable.":
+                # Step B: Summarize with Llama 3.1 (RunPod VLLM)
+                prompt = f"Please provide a concise summary of the following transcript in 2-3 sentences:\n\n{transcript}"
+                vllm_res = await runpod_call(RUNPOD_VLLM_ID, {"prompt": prompt})
+                summary = vllm_res.get("output", {}).get("response", "Summary unavailable.")
+            else:
+                summary = "Audio recording received, but no speech was detected."
+
         except Exception as ai_e:
-            print(f"Gemini Audio Analysis failed: {ai_e}")
-            summary = "Audio recording received. (AI Analysis failed)"
+            print(f"RunPod AI Analysis failed: {ai_e}")
+            summary = "Audio recording received. (Self-Hosted AI Analysis failed)"
         
         # 3. Save to DB
         new_call = CallLog(
@@ -1961,18 +2028,17 @@ async def re_summarize_call(call_id: int, current_user: User = Depends(get_curre
         raise HTTPException(status_code=400, detail="Cannot summarize without a transcript.")
 
     try:
-        # Use Gemini to summarize the transcript
-        if genai_client:
-            prompt = f"Please provide a concise summary of the following call transcript:\n\n{call.transcript}"
-            response = genai_client.models.generate_content(
-                model='gemini-2.0-flash',
-                contents=prompt
-            )
-            call.summary = response.text
+        # Use RunPod Llama 3.1 (VLLM) to summarize the transcript
+        if RUNPOD_VLLM_ID:
+            prompt = f"Please provide a concise summary of the following call transcript in 2-3 sentences:\n\n{call.transcript}"
+            vllm_res = await runpod_call(RUNPOD_VLLM_ID, {"prompt": prompt})
+            res_text = vllm_res.get("output", {}).get("response", "Summary failed.")
+            
+            call.summary = res_text
             db.commit()
             await sse_manager.broadcast("update_dashboard")
-            return {"success": True, "summary": response.text}
+            return {"success": True, "summary": res_text}
         else:
-            raise HTTPException(status_code=500, detail="Gemini AI not configured.")
+            raise HTTPException(status_code=500, detail="RunPod Llama 3.1 endpoint not configured.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -21,8 +21,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Expose the port that Uvicorn will run on.
-EXPOSE 8000
-
-# Command to run the application using Uvicorn.
 # Railway provides a dynamic PORT environment variable.
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]
