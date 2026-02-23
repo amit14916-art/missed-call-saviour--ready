@@ -1,6 +1,7 @@
-from fastapi import FastAPI, Request, Form, BackgroundTasks, Depends, HTTPException, Body, status
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi import FastAPI, Request, Form, BackgroundTasks, Depends, HTTPException, Body, status, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from pydantic import EmailStr, BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, inspect, text, or_
@@ -9,12 +10,22 @@ from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from jose import JWTError, jwt
+from pathlib import Path
+from pydub import AudioSegment
 import uvicorn
 import os
 import json
 import stripe
 import httpx
 import razorpay
+import shutil
+import base64
+import audioop
+import asyncio
+import io
+import wave
+import sys
+import traceback
 from dotenv import load_dotenv
 import google.generativeai as genai
 
@@ -106,16 +117,8 @@ except ImportError:
     RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     RP_KEY = RP_WHISPER = RP_VLLM = RP_TTS = ""
-from fastapi import UploadFile, File
-import shutil
-from pathlib import Path
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi import WebSocket, WebSocketDisconnect
-import base64
-import audioop
-from pydub import AudioSegment
-import io
-
+# Imports moved to top
+pass
 # ... (rest of imports)
 
 # Configure Gemini
@@ -135,9 +138,8 @@ except Exception as e:
 # Already loaded above
 pass
 
-import asyncio
-from fastapi.responses import StreamingResponse
-
+# Imports moved to top
+pass
 # --- SSE Manager ---
 class SSEManager:
     def __init__(self):
@@ -561,9 +563,8 @@ async def twilio_stream(websocket: WebSocket, db: Session = Depends(get_db)):
     """
     Handles Twilio Media Streams for real-time AI voice interaction.
     """
-    import audioop
-    import wave
-    from pydub import AudioSegment
+    # Imports moved to top
+    pass
 
     await websocket.accept()
     print("🚀 Twilio Stream Connected")
@@ -743,14 +744,16 @@ async def signup(background_tasks: BackgroundTasks, email: str = Form(...), pass
     except HTTPException as he:
         raise he
     except Exception as e:
-        import traceback
+        # import moved to top
+        pass
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/twilio/twiml")
 async def twilio_twiml():
     """Returns TwiML to start a Media Stream."""
-    from fastapi.responses import Response
+    # import moved to top
+    pass
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
     <Response>
         <Start>
@@ -833,8 +836,8 @@ async def process_payment(background_tasks: BackgroundTasks, email: str = Form(.
 
 @app.post("/api/vapi/webhook")
 async def vapi_webhook(request: Request, background_tasks: BackgroundTasks):
-    import sys
-    import json
+    # imports moved to top
+    pass
     try:
         # RAW PAYLOAD LOGGING (CRITICAL)
         body_bytes = await request.body()
@@ -1178,7 +1181,8 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user), db
         })
         
     # 4. Weekly Call Volume (Last 7 Days)
-    from datetime import timedelta
+    # import moved to top
+    pass
     today = datetime.utcnow().date()
     weekly_volume = []
     
@@ -1243,7 +1247,8 @@ async def clone_voice(
     """
     Clones a user's voice using ElevenLabs Instant Voice Cloning API.
     """
-    import httpx
+    # import moved to top
+    pass
     
     # 1. Get API Key (Priority: Form > User Config > Env)
     api_key = eleven_labs_api_key
@@ -1533,7 +1538,7 @@ async def verify_razorpay_payment(background_tasks: BackgroundTasks, razorpay_pa
 
 @app.get("/api/debug-env")
 async def debug_env():
-    import os
+# import os moved to top
     keys = list(os.environ.keys())
     vapi_key = os.getenv("VAPI_PRIVATE_KEY")
     vapi_id = os.getenv("VAPI_ASSISTANT_ID")
@@ -1645,7 +1650,7 @@ async def vapi_knowledge_retrieval(payload: dict = Body(...), db: Session = Depe
 
     return {"context": "New lead detected. Be helpful and charismatic."}
 
-import json
+# import json moved to top
 
 async def get_embedding(text: str, api_key: str):
     """Generates embedding for RAG using Gemini's embedding model."""
