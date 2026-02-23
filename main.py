@@ -15,8 +15,79 @@ import json
 import stripe
 import httpx
 import razorpay
-from dotenv import load_dotenv
-import google.generativeai as genai
+# --- Database Setup ---
+Base = declarative_base()
+
+# --- Database Models ---
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    plan = Column(String, default="Free")
+    is_active = Column(Boolean, default=False)
+    is_admin = Column(Boolean, default=False)
+    phone_number = Column(String, nullable=True)
+    registration_date = Column(DateTime, default=datetime.utcnow) 
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login = Column(DateTime, nullable=True)
+    stripe_customer_id = Column(String, nullable=True)
+
+class Payment(Base):
+    __tablename__ = "payments"
+    id = Column(Integer, primary_key=True, index=True)
+    user_email = Column(String, index=True)
+    amount = Column(Float)
+    plan_name = Column(String)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    stripe_session_id = Column(String, nullable=True)
+
+class CallLog(Base):
+    __tablename__ = "call_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    user_email = Column(String, index=True, nullable=True) 
+    phone_number = Column(String)
+    call_type = Column(String) 
+    status = Column(String) 
+    summary = Column(String, nullable=True)
+    transcript = Column(String, nullable=True)
+    recording_url = Column(String, nullable=True)
+    duration = Column(Integer, default=0) 
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    vapi_call_id = Column(String, nullable=True)
+    monitor_url = Column(String, nullable=True)
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, index=True)
+    role = Column(String)
+    content = Column(String)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+# Models already defined above
+pass
+
+class AIConfig(Base):
+    __tablename__ = "ai_configs"
+    id = Column(Integer, primary_key=True, index=True)
+    user_email = Column(String, index=True)
+    business_name = Column(String, default="My Business")
+    assistant_role = Column(String, default="Senior AI Representative")
+    system_prompt = Column(String, nullable=True)
+    persona = Column(String, default="friendly")
+    owner_phone = Column(String, nullable=True)
+    vapi_assistant_id = Column(String, nullable=True)
+    eleven_labs_voice_id = Column(String, nullable=True)
+    eleven_labs_api_key = Column(String, nullable=True)
+
+class KnowledgeBase(Base):
+    __tablename__ = "knowledge_base"
+    id = Column(Integer, primary_key=True, index=True)
+    question = Column(String)
+    answer = Column(String)
+    embedding = Column(String)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
 # Load environment variables first
 load_dotenv()
 
@@ -137,7 +208,8 @@ else:
 
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+# Base already defined at top
+pass
 
 # --- Initialize App ---
 app = FastAPI(title="Missed Call Saviour Backend")
@@ -181,59 +253,8 @@ async def runpod_call(endpoint_id, input_data):
         resp = await client.post(url, json={"input": input_data}, headers=headers)
         return resp.json()
 
-class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
-    plan = Column(String, default="Free")
-    is_active = Column(Boolean, default=False)
-    is_admin = Column(Boolean, default=False) # New Admin Flag
-    phone_number = Column(String, nullable=True) # Added for user contact
-    registration_date = Column(DateTime, default=datetime.utcnow) 
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    last_login = Column(DateTime, nullable=True)
-    stripe_customer_id = Column(String, nullable=True)
-    
-class Payment(Base):
-    __tablename__ = "payments"
-    id = Column(Integer, primary_key=True, index=True)
-    user_email = Column(String, index=True)
-    amount = Column(Float)
-    plan_name = Column(String)
-    timestamp = Column(DateTime, default=datetime.utcnow)
-    stripe_session_id = Column(String, nullable=True)
-
-class CallLog(Base):
-    __tablename__ = "call_logs"
-    id = Column(Integer, primary_key=True, index=True)
-    user_email = Column(String, index=True, nullable=True) 
-    phone_number = Column(String)
-    call_type = Column(String) 
-    status = Column(String) 
-    summary = Column(String, nullable=True)
-    transcript = Column(String, nullable=True) # Added transcript column
-    recording_url = Column(String, nullable=True)
-    duration = Column(Integer, default=0) 
-    timestamp = Column(DateTime, default=datetime.utcnow)
-    vapi_call_id = Column(String, nullable=True)
-    monitor_url = Column(String, nullable=True)
-
-class ChatMessage(Base):
-    __tablename__ = "chat_messages"
-    id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(String, index=True) # Unique ID for each website visitor
-    role = Column(String) # 'user' or 'model'
-    content = Column(String)
-    timestamp = Column(DateTime, default=datetime.utcnow)
-
-class KnowledgeBase(Base):
-    __tablename__ = "knowledge_base"
-    id = Column(Integer, primary_key=True, index=True)
-    question = Column(String)
-    answer = Column(String)
-    embedding = Column(String) # Storing as stringified list for simplicity if pgvector isn't installed
-    timestamp = Column(DateTime, default=datetime.utcnow)
+# AI Models moved to top to support webhooks
+pass
 
 # Table creation moved to startup_event
 
