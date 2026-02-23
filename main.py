@@ -826,6 +826,42 @@ async def signup(background_tasks: BackgroundTasks, email: str = Form(...), pass
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/admin/reset-password")
+async def admin_reset_password(
+    secret: str,
+    email: str,
+    new_password: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Admin endpoint to reset any user password.
+    Protected by ADMIN_SECRET env variable.
+    Usage: POST /api/admin/reset-password?secret=XXX&email=YYY&new_password=ZZZ
+    """
+    admin_secret = os.getenv("ADMIN_SECRET", "mcs-admin-2026")
+    if secret != admin_secret:
+        raise HTTPException(status_code=403, detail="Invalid admin secret")
+
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        # Create new user if doesn't exist
+        user = User(
+            email=email,
+            hashed_password=get_password_hash(new_password),
+            is_active=True,
+            is_admin=True,
+            registration_date=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        db.add(user)
+        db.commit()
+        return {"message": f"New admin user created: {email}"}
+    else:
+        user.hashed_password = get_password_hash(new_password)
+        user.is_active = True
+        db.commit()
+        return {"message": f"Password reset for: {email}"}
+
 @app.post("/api/twilio/twiml")
 async def twilio_twiml(request: Request, user_email: str = "amit14916@gmail.com"):
     """Returns TwiML to start a Media Stream with user context."""
