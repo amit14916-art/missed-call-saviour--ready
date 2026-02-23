@@ -67,14 +67,12 @@ class ChatMessage(Base):
     role = Column(String)
     content = Column(String)
     timestamp = Column(DateTime, default=datetime.utcnow)
-# Models already defined above
-pass
-
 class AIConfig(Base):
     __tablename__ = "ai_configs"
     id = Column(Integer, primary_key=True, index=True)
     user_email = Column(String, index=True)
     business_name = Column(String, default="My Business")
+    greeting = Column(String, default="Hello! How can I help you today?")
     assistant_role = Column(String, default="Senior AI Representative")
     system_prompt = Column(String, nullable=True)
     persona = Column(String, default="friendly")
@@ -1211,18 +1209,8 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user), db
 
 # --- AI Configuration Endpoints ---
 
-class AIConfig(Base):
-    __tablename__ = "ai_configs"
-    id = Column(Integer, primary_key=True, index=True)
-    user_email = Column(String, index=True) # Linking by email for MVP simplicity
-    business_name = Column(String, default="My Business")
-    greeting = Column(String, default="Hello! How can I help you today?")
-    persona = Column(String, default="friendly")
-    owner_phone = Column(String, nullable=True)
-    vapi_assistant_id = Column(String, nullable=True) # CRITICAL: Links User to their unique Vapi Agent # New Persona Field
-    eleven_labs_voice_id = Column(String, nullable=True) # Voice Cloning
-    eleven_labs_api_key = Column(String, nullable=True) # User's ElevenLabs Key
-
+# Model AIConfig is defined at the top
+pass
 # Table creation moved to startup_event
 
 # ... (rest of code)
