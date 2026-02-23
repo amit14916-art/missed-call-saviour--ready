@@ -31,13 +31,7 @@ from dotenv import load_dotenv
 from twilio.rest import Client as TwilioClient
 from google import genai
 from voice_pipeline import MissedCallPipeline
-from call_handler import handle_telnyx_webhook, handle_call_websocket
-from twilio_handler import handle_twilio_webhook, handle_twilio_websocket
-from exotel_handler import handle_exotel_webhook, handle_exotel_websocket
 
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
 # --- Database Setup ---
 Base = declarative_base()
@@ -211,6 +205,10 @@ class SSEManager:
 
 sse_manager = SSEManager()
 
+from call_handler import handle_telnyx_webhook, handle_call_websocket
+from twilio_handler import handle_twilio_webhook, handle_twilio_websocket
+from exotel_handler import handle_exotel_webhook, handle_exotel_websocket
+
 
 # --- Configuration ---
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
@@ -258,6 +256,10 @@ pass
 
 # --- Initialize App ---
 app = FastAPI(title="Missed Call Saviour Backend")
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
 # Add CORS Middleware
 app.add_middleware(
