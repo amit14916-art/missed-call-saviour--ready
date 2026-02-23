@@ -642,54 +642,73 @@ async def exotel_ws(websocket: WebSocket, db: Session = Depends(get_db)):
 @app.websocket("/ws/browser-ai")
 async def browser_ai_ws(websocket: WebSocket, db: Session = Depends(get_db)):
     await websocket.accept()
-    print("🖥️ Browser AI Socket Connected")
-    
+    print("Browser AI Socket Connected")
+
+    # Send ready signal immediately so frontend shows connected
+    await websocket.send_json({"event": "status", "message": "AI Ready! Hold the button to speak."})
+
     config = db.query(AIConfig).first()
     if not config:
-        await websocket.send_json({"error": "AI not configured"})
+        await websocket.send_json({"event": "error", "message": "AI not configured in dashboard."})
         await websocket.close()
         return
 
     pipeline = MissedCallPipeline(
-        business_name = config.business_name or "the business",
-        owner_name    = getattr(config, "owner_name", "the owner"),
+        business_name  = config.business_name or "the business",
+        owner_name     = getattr(config, "owner_name", "the owner"),
         assistant_role = getattr(config, "assistant_role", "Senior AI Representative"),
-        system_prompt = config.system_prompt or "",
-        greeting      = config.greeting or f"Hi! I'm your AI. How can I help you today?",
-        voice         = config.persona or "af_sarah"
+        system_prompt  = config.system_prompt or "",
+        greeting       = config.greeting or "Hi! I am your AI assistant. How can I help you today?",
+        voice          = config.persona or "af_sarah"
     )
 
-    # Sending greeting audio
-    greeting_audio = await pipeline.get_greeting_audio()
-    if greeting_audio:
-        await websocket.send_json({
-            "event": "audio",
-            "payload": base64.b64encode(greeting_audio).decode("utf-8")
-        })
+    # Send greeting as text immediately (no blocking)
+    await websocket.send_json({
+        "event": "text_reply",
+        "transcript": "",
+        "text": pipeline.greeting
+    })
+
+    # Attempt greeting TTS with timeout - won't crash if RunPod is cold
+    try:
+        greeting_audio = await asyncio.wait_for(pipeline.get_greeting_audio(), timeout=15.0)
+        if greeting_audio:
+            await websocket.send_json({
+                "event": "audio",
+                "payload": base64.b64encode(greeting_audio).decode("utf-8")
+            })
+    except Exception as e:
+        print(f"Greeting TTS skipped (RunPod may be cold): {e}")
 
     try:
         while True:
             data = await websocket.receive_text()
             msg = json.loads(data)
-            
+
             if msg.get("event") == "audio_input":
                 audio_payload = msg.get("payload")
                 audio_bytes = base64.b64decode(audio_payload)
-                
-                # Use pipeline to process turn
-                transcript, reply_audio = await pipeline.process_turn(audio_bytes)
-                
+
+                try:
+                    transcript, reply_audio = await asyncio.wait_for(
+                        pipeline.process_turn(audio_bytes), timeout=60.0
+                    )
+                except asyncio.TimeoutError:
+                    transcript = ""
+                    reply_audio = None
+
                 res = {
                     "event": "audio_reply",
                     "transcript": transcript,
                     "payload": base64.b64encode(reply_audio).decode("utf-8") if reply_audio else None
                 }
                 await websocket.send_json(res)
-                
+
     except WebSocketDisconnect:
-        print("🖥️ Browser AI Socket Disconnected")
+        print("Browser AI Socket Disconnected")
     except Exception as e:
         print(f"Browser AI Error: {e}")
+
 
 @app.get("/api/call-logs")
 async def get_call_logs(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):

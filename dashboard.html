@@ -1964,13 +1964,22 @@
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                 browserWS = new WebSocket(`${protocol}//${window.location.host}/ws/browser-ai`);
 
-                browserWS.onopen = () => status.innerText = "AI Ready! Hold the button to speak.";
+                browserWS.onopen = () => status.innerText = "Connecting to AI...";
                 browserWS.onclose = () => status.innerText = "Disconnected.";
+                browserWS.onerror = () => status.innerText = "Connection error. Please try again.";
 
                 browserWS.onmessage = async (event) => {
                     const msg = JSON.parse(event.data);
-                    if (msg.event === 'audio' || msg.event === 'audio_reply') {
-                        if (msg.transcript) appendMsg(`You: ${msg.transcript}`);
+
+                    if (msg.event === 'status') {
+                        status.innerText = msg.message;
+                    } else if (msg.event === 'error') {
+                        status.innerText = "Error: " + msg.message;
+                    } else if (msg.event === 'text_reply') {
+                        // Show AI text greeting/reply in chat
+                        if (msg.text) appendMsg(`AI: ${msg.text}`, 'ai');
+                    } else if (msg.event === 'audio' || msg.event === 'audio_reply') {
+                        if (msg.transcript) appendMsg(`You: ${msg.transcript}`, 'user');
                         if (msg.payload) playBase64Audio(msg.payload);
                     }
                 };
