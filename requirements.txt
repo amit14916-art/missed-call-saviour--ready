@@ -15,7 +15,7 @@ python-jose[cryptography]
 razorpay
 google-genai
 requests
-websockets==12.0
+websockets>=13.0.0
 pydub
 twilio
 soundfile==0.12.1
