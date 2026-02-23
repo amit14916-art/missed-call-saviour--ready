@@ -15,6 +15,9 @@ import json
 import stripe
 import httpx
 import razorpay
+from dotenv import load_dotenv
+import google.generativeai as genai
+
 # --- Database Setup ---
 Base = declarative_base()
 
@@ -131,8 +134,8 @@ except Exception as e:
     print(f"Failed to configure Gemini: {e}")
     gemini_model = None
 
-# Load environment variables
-load_dotenv()
+# Already loaded above
+pass
 
 import asyncio
 from fastapi.responses import StreamingResponse
