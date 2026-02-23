@@ -33,7 +33,7 @@ from google import genai
 from voice_pipeline import MissedCallPipeline
 
 
-# --- Database Setup ---
+print("Loading Database Models...")
 Base = declarative_base()
 
 # --- Database Models ---
@@ -254,14 +254,15 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # Base already defined at top
 pass
 
-# --- Initialize App ---
+print("Starting FastAPI app initialization...")
 app = FastAPI(title="Missed Call Saviour Backend")
 
 @app.get("/health")
 async def health_check():
+    print("Health check called")
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
-# Add CORS Middleware
+print("Configuring CORS...")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
