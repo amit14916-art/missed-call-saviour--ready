@@ -15,3 +15,9 @@ RAZORPAY_KEY_SECRET = "tjemjJE04zEUjV1ez8hyOOIY"
 
 # Google Gemini API Key (Loaded from environment variables in main.py)
 GEMINI_API_KEY = "" # Set in Railway/Local Env
+
+# RunPod Config (Self-Hosted AI)
+RUNPOD_API_KEY = "rpa_A7N8PNR36DLKCL417PD1JP5I0CDFGA5XEA7TGQQ31yytla"
+RUNPOD_WHISPER_ID = "rw7529dt6ahtci" 
+RUNPOD_VLLM_ID = "hacw04ier99sy"
+RUNPOD_TTS_ID = "kw6ti6ck8oq7z4"

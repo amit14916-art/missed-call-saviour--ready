@@ -17,11 +17,17 @@ import httpx
 import razorpay
 from dotenv import load_dotenv
 import google.generativeai as genai
-from config_secrets import DATABASE_URL, VAPI_PRIVATE_KEY, VAPI_ASSISTANT_ID, VAPI_PHONE_NUMBER_ID, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, GEMINI_API_KEY
+# Imports moved to robust loading section below
+RP_KEY = RP_WHISPER = RP_VLLM = RP_TTS = ""
 from fastapi import UploadFile, File
 import shutil
 from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import WebSocket, WebSocketDisconnect
+import base64
+import audioop
+from pydub import AudioSegment
+import io
 
 # ... (rest of imports)
 
@@ -86,10 +92,12 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 # --- Database Setup ---
 
 try:
-    from config_secrets import DATABASE_URL, VAPI_PRIVATE_KEY, VAPI_ASSISTANT_ID, VAPI_PHONE_NUMBER_ID, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET
+    from config_secrets import DATABASE_URL, VAPI_PRIVATE_KEY, VAPI_ASSISTANT_ID, VAPI_PHONE_NUMBER_ID, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, GEMINI_API_KEY, RUNPOD_API_KEY as RP_KEY, RUNPOD_WHISPER_ID as RP_WHISPER, RUNPOD_VLLM_ID as RP_VLLM, RUNPOD_TTS_ID as RP_TTS
     print("Using hardcoded secrets from config_secrets.py")
 except ImportError:
     print("Using environment variables (config_secrets.py not found)")
+    RP_KEY = RP_WHISPER = RP_VLLM = RP_TTS = ""
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     DATABASE_URL = os.getenv("DATABASE_URL")
     VAPI_PRIVATE_KEY = os.getenv("VAPI_PRIVATE_KEY")
     VAPI_ASSISTANT_ID = os.getenv("VAPI_ASSISTANT_ID")
@@ -145,8 +153,28 @@ async def get_debug_status():
         "gemini_key_present": bool(api_key),
         "gemini_key_suffix": f"***{api_key[-4:]}" if api_key else "NONE",
         "database_connected": "True",
-        "version": "1.3.0"
+        "version": "1.5.0",
+        "ai_engine": "Self-Hosted (RunPod)"
     }
+
+# --- RunPod Helper ---
+RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY", RP_KEY)
+RUNPOD_WHISPER_ID = os.getenv("RUNPOD_WHISPER_ID", RP_WHISPER)
+RUNPOD_VLLM_ID = os.getenv("RUNPOD_VLLM_ID", RP_VLLM)
+RUNPOD_TTS_ID = os.getenv("RUNPOD_TTS_ID", RP_TTS)
+
+async def runpod_call(endpoint_id, input_data):
+    if not RUNPOD_API_KEY or not endpoint_id:
+        return {"error": "RunPod not configured"}
+    
+    url = f"https://api.runpod.ai/v2/{endpoint_id}/runsync"
+    headers = {
+        "Authorization": f"Bearer {RUNPOD_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(url, json={"input": input_data}, headers=headers)
+        return resp.json()
 
 class User(Base):
     __tablename__ = "users"
@@ -499,6 +527,99 @@ async def read_root():
 async def sse_endpoint(request: Request):
     return StreamingResponse(sse_manager.connect(request), media_type="text/event-stream")
 
+# --- Twilio Real-Time AI Orchestration ---
+
+@app.websocket("/api/twilio/stream")
+async def twilio_stream(websocket: WebSocket, db: Session = Depends(get_db)):
+    """
+    Handles Twilio Media Streams for real-time AI voice interaction.
+    """
+    import audioop
+    import wave
+    from pydub import AudioSegment
+
+    await websocket.accept()
+    print("🚀 Twilio Stream Connected")
+    
+    stream_sid = None
+    audio_buffer = io.BytesIO()
+    
+    try:
+        while True:
+            message = await websocket.receive_text()
+            data = json.loads(message)
+            
+            if data['event'] == 'start':
+                stream_sid = data['start']['streamSid']
+                print(f"Stream Started: {stream_sid}")
+                
+            elif data['event'] == 'media':
+                payload = data['media']['payload']
+                audio_chunk = base64.b64decode(payload)
+                audio_buffer.write(audio_chunk)
+                
+                # Buffer enough audio (e.g., 2 seconds for better context)
+                if audio_buffer.tell() > 16000: 
+                    audio_buffer.seek(0)
+                    raw_audio = audio_buffer.read()
+                    audio_buffer = io.BytesIO()
+                    
+                    # Convert mulaw to wav for Whisper
+                    try:
+                        pcm_raw = audioop.ulaw2lin(raw_audio, 2)
+                        wav_mem = io.BytesIO()
+                        with wave.open(wav_mem, 'wb') as wav_file:
+                            wav_file.setnchannels(1)
+                            wav_file.setsampwidth(2)
+                            wav_file.setframerate(8000)
+                            wav_file.writeframes(pcm_raw)
+                        audio_b64 = base64.b64encode(wav_mem.getvalue()).decode('utf-8')
+                        
+                        # 1. Transcribe (Whisper)
+                        whisper_res = await runpod_call(RUNPOD_WHISPER_ID, {"audio_base64": audio_b64})
+                        transcript = whisper_res.get("output", {}).get("transcript", "")
+                        
+                        if transcript.strip():
+                            print(f"Transcribed: {transcript}")
+                            
+                            # 2. Logic (vLLM)
+                            prompt = f"User says: {transcript}\nAI Agent Response:"
+                            vllm_res = await runpod_call(RUNPOD_VLLM_ID, {"prompt": prompt})
+                            ai_reply = vllm_res.get("output", {}).get("response", "")
+                            
+                            if ai_reply:
+                                print(f"AI Reply: {ai_reply}")
+                                
+                                # 3. TTS (Piper)
+                                tts_res = await runpod_call(RUNPOD_TTS_ID, {"text": ai_reply})
+                                out_audio_b64 = tts_res.get("output", {}).get("audio_base64", "")
+                                
+                                if out_audio_b64:
+                                    # Convert WAV back to mulaw for Twilio
+                                    audio_data = base64.b64decode(out_audio_b64)
+                                    wav_seg = AudioSegment.from_file(io.BytesIO(audio_data))
+                                    resampled = wav_seg.set_frame_rate(8000).set_channels(1)
+                                    mulaw_bytes = audioop.lin2ulaw(resampled.raw_data, resampled.sample_width)
+                                    
+                                    await websocket.send_json({
+                                        "event": "media",
+                                        "streamSid": stream_sid,
+                                        "media": {
+                                            "payload": base64.b64encode(mulaw_bytes).decode('utf-8')
+                                        }
+                                    })
+                    except Exception as inner_e:
+                        print(f"Pipeline Processing Error: {inner_e}")
+
+            elif data['event'] == 'stop':
+                print(f"Stream Stopped: {stream_sid}")
+                break
+                
+    except WebSocketDisconnect:
+        print("Twilio Stream Disconnected")
+    except Exception as e:
+        print(f"Stream Error: {e}")
+
 
 @app.get("/chatbot.js")
 async def read_chatbot_js():
@@ -599,36 +720,44 @@ async def signup(background_tasks: BackgroundTasks, email: str = Form(...), pass
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/twilio/twiml")
+async def twilio_twiml():
+    """Returns TwiML to start a Media Stream."""
+    from fastapi.responses import Response
+    twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+    <Response>
+        <Start>
+            <Stream url="wss://{DOMAIN.split('://')[-1]}/api/twilio/stream" />
+        </Start>
+        <Say>Please wait while I connect you to the AI agent.</Say>
+        <Pause length="30"/>
+    </Response>"""
+    return Response(content=twiml, media_type="application/xml")
+
 @app.post("/api/send-demo-call")
 async def send_demo_call(
     background_tasks: BackgroundTasks, 
     phone: str = Form(...), 
+    engine_type: str = Form("vapi"), 
     current_user: User = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
-    print(f"Received demo Call request for: {phone} from {current_user.email}")
+    print(f"Received demo Call request ({engine_type}) for: {phone} from {current_user.email}")
     
-    # 0. Sanitize Phone Number (to ensure match with CallLog)
+    # 0. Sanitize Phone Number
     if not phone.startswith("+"):
          clean_phone = phone.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
-         # Assume India (+91) if 10 digits
-         if len(clean_phone) == 10:
-             phone = f"+91{clean_phone}"
-         else:
-             phone = f"+{clean_phone}"
+         phone = f"+91{clean_phone}" if len(clean_phone) == 10 else f"+{clean_phone}"
     
     print(f"Normalized Phone: {phone}")
     
     # 1. Log the call immediately
-
     try:
         new_call = CallLog(
             phone_number=phone,
             call_type="outbound-demo", 
             status="initiated",
-            summary=f"Demo call initiated (Vapi Settings)",
-            recording_url=None,
-            duration=0,
+            summary=f"Demo call initiated ({engine_type} Engine)",
             user_email=current_user.email 
         )
         db.add(new_call)
@@ -636,20 +765,18 @@ async def send_demo_call(
     except Exception as e:
         print(f"Failed to log initial call: {e}")
 
-    # Direct Call - strict usage of Vapi Dashboard Settings
+    if engine_type == "self-hosted":
+        return {"success": True, "message": "Self-hosted engine ready. Please call your configured Twilio number."}
+
+    # Default Vapi Trigger
     try:
-        # Check if user has a custom assistant configured
         user_config = db.query(AIConfig).filter(AIConfig.user_email == current_user.email).first()
         assistant_id = user_config.vapi_assistant_id if user_config else None
-        
-        # We pass a generic opening message just to start the call, 
-        # but the Persona/System Prompt comes from Vapi now.
         await trigger_vapi_outbound_call(phone, "Hello! This is a demo call from Missed Call Saviour.", user_email=current_user.email, assistant_id=assistant_id)
         return {"success": True, "message": "Demo call initiated successfully."}
     except Exception as e:
         print(f"Error in demo call endpoint: {e}")
         return JSONResponse(status_code=500, content={"error": "Failed to initiate call", "details": str(e)})
-
 
 
 @app.post("/api/process-payment")
@@ -1757,100 +1884,6 @@ async def upload_call_recording(
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 # --- Admin Routes ---
-@app.get("/api/admin/users")
-async def get_all_users(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    
-    users = db.query(User).all()
-    user_list = []
-    for u in users:
-        # Get extra details
-        stats = db.query(CallLog).filter(or_(CallLog.user_email == u.email, CallLog.user_email == None)).count()
-        config = db.query(AIConfig).filter(AIConfig.user_email == u.email).first()
-        
-        user_list.append({
-            "id": u.id,
-            "email": u.email,
-            "business_name": config.business_name if config else "N/A",
-            "plan": u.plan,
-            "status": "Active" if u.is_active else "Inactive",
-            "is_admin": u.is_admin,
-            "total_calls": stats,
-            "vapi_assistant_id": config.vapi_assistant_id if config else "Not Created",
-            "joined_at": u.registration_date.strftime("%Y-%m-%d")
-        })
-    return user_list
-
-@app.delete("/api/admin/users/{user_id}")
-async def delete_user(user_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-        
-    if user.id == current_user.id:
-        raise HTTPException(status_code=400, detail="Cannot delete yourself")
-    
-    db.delete(user)
-    db.commit()
-    return {"message": "User deleted successfully"}
-
-# --- Demo Call Route ---
-@app.post("/api/send-demo-call")
-async def send_demo_call(
-    phone: str = Form(...), 
-    current_user: User = Depends(get_current_user), 
-    db: Session = Depends(get_db)
-):
-    """
-    Triggers an outbound call from Vapi to the user's phone number as a demo.
-    """
-    # 1. Get User Config or Default
-    config = db.query(AIConfig).filter(AIConfig.user_email == current_user.email).first()
-    assistant_id = config.vapi_assistant_id if config and config.vapi_assistant_id else VAPI_ASSISTANT_ID
-    
-    if not assistant_id or assistant_id == "Not Created":
-         return JSONResponse(status_code=400, content={"details": "AI Assistant not configured yet. Save settings first."})
-
-    vapi_url = "https://api.vapi.ai/call"
-    headers = {
-        "Authorization": f"Bearer {VAPI_PRIVATE_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "assistantId": assistant_id,
-        "customer": {
-            "number": phone
-        },
-        "phoneNumberId": VAPI_PHONE_NUMBER_ID  # Must be a purchased Vapi/Twilio number
-    }
-    
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(vapi_url, json=payload, headers=headers)
-            if response.status_code == 201:
-                # Log the initiated call
-                new_log = CallLog(
-                    user_email=current_user.email,
-                    phone_number=phone,
-                    call_type="outbound-demo",
-                    status="initiated",
-                    summary="Demo call triggered from dashboard.",
-                    vapi_call_id=response.json().get("id")
-                )
-                db.add(new_log)
-                db.commit()
-                await sse_manager.broadcast("update_dashboard")
-                return {"success": True, "message": "Demo call initiated successfully."}
-            else:
-                return JSONResponse(status_code=response.status_code, content={"details": response.text})
-        except Exception as e:
-            return JSONResponse(status_code=500, content={"error": str(e)})
-
 @app.get("/api/calls/{vapi_call_id}/join")
 async def join_live_call(vapi_call_id: str, current_user: User = Depends(get_current_user)):
     """

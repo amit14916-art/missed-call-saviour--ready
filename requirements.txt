@@ -15,3 +15,5 @@ python-jose[cryptography]
 razorpay
 google-generativeai
 requests
+websockets
+pydub

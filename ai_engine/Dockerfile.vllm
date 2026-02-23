@@ -1,0 +1,6 @@
+FROM vllm/vllm-openai:latest
+
+WORKDIR /app
+COPY vllm_handler.py .
+RUN pip install runpod
+CMD [ "python", "-u", "vllm_handler.py" ]

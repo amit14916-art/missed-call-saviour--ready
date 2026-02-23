@@ -1,0 +1,7 @@
+FROM runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04
+
+WORKDIR /app
+RUN apt-get update && apt-get install -y ffmpeg
+COPY whisper_handler.py .
+RUN pip install faster-whisper runpod
+CMD [ "python", "-u", "whisper_handler.py" ]

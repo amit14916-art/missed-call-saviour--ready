@@ -520,6 +520,26 @@
                                 onclick="triggerDemoCall()"
                                 style="width:100%; display: flex; align-items: center; justify-content: center; gap: 8px;"><span>📞</span>Trigger
                                 Call</button>
+
+                            <!-- Engine Selection & Status -->
+                            <div
+                                style="margin-top: 16px; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 12px; border: 1px solid var(--glass-border);">
+                                <div
+                                    style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                    <label style="font-size: 0.75rem; margin-bottom: 0;">AI Engine</label>
+                                    <select id="aiEngineSelect" onchange="updateEngineStatus()"
+                                        style="background: transparent; border: none; font-size: 0.75rem; font-weight: bold; color: #00c6ff; cursor: pointer; outline: none;">
+                                        <option value="vapi" style="background: #0f172a;">Vapi (Default)</option>
+                                        <option value="self-hosted" style="background: #0f172a;">Self-Hosted</option>
+                                    </select>
+                                </div>
+                                <div id="engineStatusIndicator"
+                                    style="display: flex; align-items: center; gap: 8px; font-size: 0.7rem; color: var(--text-muted);">
+                                    <span
+                                        style="width: 8px; height: 8px; background: #34d399; border-radius: 50%; display: inline-block;"></span>
+                                    <span>Vapi Cloud Active</span>
+                                </div>
+                            </div>
                             <button class="btn" onclick="fetchActiveCalls()"
                                 style="width:100%; margin-top: 10px; background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.3); color: #34d399; font-size: 0.8rem;">
                                 🔄 Refresh Live List
@@ -835,6 +855,17 @@
             style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 999;">
         </div>
         <script> // Check Auth and Load User Data
+            function updateEngineStatus() {
+                const select = document.getElementById('aiEngineSelect');
+                const indicator = document.getElementById('engineStatusIndicator');
+                if (select && indicator) {
+                    if (select.value === 'self-hosted') {
+                        indicator.innerHTML = '<span style="width: 8px; height: 8px; background: #00c6ff; border-radius: 50%; display: inline-block; box-shadow: 0 0 8px #00c6ff;"></span> <span style="color: #00c6ff;">Self-Hosted Pipeline Ready</span>';
+                    } else {
+                        indicator.innerHTML = '<span style="width: 8px; height: 8px; background: #34d399; border-radius: 50%; display: inline-block;"></span> <span>Vapi Cloud Active</span>';
+                    }
+                }
+            }
 
             async function initDashboard() {
                 const token = localStorage.getItem('token');
@@ -1248,8 +1279,10 @@
                 msg.style.display = 'none';
 
                 try {
+                    const engineType = document.getElementById('aiEngineSelect').value;
                     const formData = new FormData();
                     formData.append('phone', phone);
+                    formData.append('engine_type', engineType);
 
                     const token = localStorage.getItem('token');
 
