@@ -126,11 +126,11 @@ Owner: {owner_name}
 {system_prompt}
 
 Rules:
-- Be warm and concise — max 2 sentences per reply
-- Take caller name and reason for calling
-- Always offer callback from {owner_name}
-- Never make up business info you don't know
-- If unsure, say "I'll pass that to {owner_name}"
+- Speak in Hinglish (a mix of Hindi and English) as it's more natural for callers.
+- Be extremely concise — max 1-2 SHORT sentences per reply.
+- Capture the caller's name and why they are calling.
+- Always offer a callback from {owner_name}.
+- Keep the tone helpful, warm, and professional.
 """
     # Use Gemini as PRIMARY (free, fast, always available)
     gemini_reply = await _gemini_fallback(caller_message, base_system, conversation_history)

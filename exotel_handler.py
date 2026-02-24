@@ -60,8 +60,13 @@ async def handle_exotel_websocket(websocket: WebSocket, db: Session):
             voice         = config.persona if config.persona else "af_sarah"
         )
 
-        audio_buffer = io.BytesIO()
-
+        # Audio Processing State
+        audio_buffer = bytearray()
+        silence_threshold = 500  # ms of silence to trigger AI
+        last_audio_time = datetime.utcnow()
+        is_speaking = False
+        silence_chunks = 0
+        
         async for message in websocket.iter_text():
             try:
                 data = json.loads(message)
@@ -94,34 +99,44 @@ async def handle_exotel_websocket(websocket: WebSocket, db: Session):
                 # Send greeting
                 greeting_audio = await pipeline.get_greeting_audio()
                 if greeting_audio:
-                    # Exotel expects PCM 16-bit 8kHz
                     await _send_audio(websocket, greeting_audio)
 
             elif event == "media":
                 payload = data["media"]["payload"]
                 chunk = base64.b64decode(payload)
-                audio_buffer.write(chunk)
+                
+                # Check for silence (very basic RMS check)
+                rms = audioop.rms(chunk, 2)
+                if rms < 300: # Threshold for silence
+                    silence_chunks += 1
+                else:
+                    silence_chunks = 0
+                    is_speaking = True
+                
+                audio_buffer.extend(chunk)
 
-                # Process every ~0.8s (12800 bytes for 16-bit 8kHz = 0.8s)
-                if audio_buffer.tell() > 12800:
-                    audio_buffer.seek(0)
-                    raw_pcm = audio_buffer.read()
-                    audio_buffer = io.BytesIO()
-
+                # If we've been silent for ~0.6s and we were speaking, process the turn
+                # 8000hz * 2 bytes * 0.6s = 9600 bytes
+                if is_speaking and silence_chunks > 15: # ~0.5s of silence
+                    logger.info(f"👂 Silence detected, processing {len(audio_buffer)} bytes...")
+                    
                     # Convert to WAV for Whisper
                     wav_mem = io.BytesIO()
                     with wave.open(wav_mem, 'wb') as wav_file:
                         wav_file.setnchannels(1)
                         wav_file.setsampwidth(2)
                         wav_file.setframerate(8000)
-                        wav_file.writeframes(raw_pcm)
+                        wav_file.writeframes(bytes(audio_buffer))
+                    
+                    # Reset buffers
+                    audio_buffer = bytearray()
+                    is_speaking = False
+                    silence_chunks = 0
                     
                     try:
                         transcript, reply_audio = await pipeline.process_turn(wav_mem.getvalue())
-                        
                         if transcript:
                             logger.info(f"🎤 {call_sid} Transcript: {transcript}")
-
                         if reply_audio:
                             await _send_audio(websocket, reply_audio)
                     except Exception as turn_e:

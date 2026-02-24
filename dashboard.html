@@ -620,7 +620,10 @@
                                     <select id="aiEngineSelect" onchange="updateEngineStatus()"
                                         style="background: transparent; border: none; font-size: 0.75rem; font-weight: bold; color: #00c6ff; cursor: pointer; outline: none;">
                                         <option value="vapi" style="background: #0f172a;">Vapi (Default)</option>
-                                        <option value="self-hosted" style="background: #0f172a;">Self-Hosted</option>
+                                        <option value="exotel" style="background: #0f172a;">Exotel AI (Self-Hosted)
+                                        </option>
+                                        <option value="self-hosted" style="background: #0f172a;">Twilio AI (Self-Hosted)
+                                        </option>
                                     </select>
                                 </div>
                                 <div id="engineStatusIndicator"
@@ -954,8 +957,10 @@
                 const select = document.getElementById('aiEngineSelect');
                 const indicator = document.getElementById('engineStatusIndicator');
                 if (select && indicator) {
-                    if (select.value === 'self-hosted') {
-                        indicator.innerHTML = '<span style="width: 8px; height: 8px; background: #00c6ff; border-radius: 50%; display: inline-block; box-shadow: 0 0 8px #00c6ff;"></span> <span style="color: #00c6ff;">Self-Hosted Pipeline Ready</span>';
+                    if (select.value === 'exotel') {
+                        indicator.innerHTML = '<span style="width: 8px; height: 8px; background: #fbbf24; border-radius: 50%; display: inline-block; box-shadow: 0 0 8px #fbbf24;"></span> <span style="color: #fbbf24;">Exotel AI (Self-Hosted) Ready</span>';
+                    } else if (select.value === 'self-hosted') {
+                        indicator.innerHTML = '<span style="width: 8px; height: 8px; background: #00c6ff; border-radius: 50%; display: inline-block; box-shadow: 0 0 8px #00c6ff;"></span> <span style="color: #00c6ff;">Twilio AI (Self-Hosted) Ready</span>';
                     } else {
                         indicator.innerHTML = '<span style="width: 8px; height: 8px; background: #34d399; border-radius: 50%; display: inline-block;"></span> <span>Vapi Cloud Active</span>';
                     }

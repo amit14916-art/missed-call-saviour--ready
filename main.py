@@ -877,29 +877,56 @@ async def twilio_twiml(request: Request, user_email: str = "amit14916@gmail.com"
     </Response>"""
     return Response(content=twiml, media_type="application/xml")
 
-async def trigger_twilio_outbound_call(to_phone: str, user_email: str):
+@app.post("/api/exotel/flow")
+async def exotel_flow(request: Request):
     """
-    Triggers an outbound call via Twilio that connects to our local Media Stream.
-    This replaces the need for Vapi's outbound trigger.
+    Returns the XML response for Exotel to initiate the WebSocket stream.
     """
-    if not twilio_client or not TWILIO_PHONE_NUMBER:
-        print("Error: Twilio not configured for outbound calls.")
+    domain_host = DOMAIN.split('://')[-1]
+    xml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
+    <Response>
+        <Connect>
+            <Stream url="wss://{domain_host}/ws/exotel" />
+        </Connect>
+    </Response>"""
+    return Response(content=xml_response, media_type="application/xml")
+
+async def trigger_exotel_outbound_call(to_phone: str):
+    """
+    Triggers an outbound call via Exotel API.
+    """
+    if not EXOTEL_SID or not EXOTEL_API_KEY or not EXOTEL_API_TOKEN:
+        print("❌ Error: Exotel Credentials missing in .env")
         return False
         
+    exotel_virtual_number = os.getenv("EXOTEL_PHONE_NUMBER")
+    if not exotel_virtual_number:
+        print("❌ Error: EXOTEL_PHONE_NUMBER missing in .env")
+        return False
+
+    url = f"https://api.exotel.com/v1/Accounts/{EXOTEL_SID}/Calls/connect.json"
+    
+    payload = {
+        "From": to_phone,
+        "To": exotel_virtual_number,
+        "CallerId": exotel_virtual_number,
+        "Url": f"{DOMAIN}/api/exotel/flow",
+        "CallType": "transcribed"
+    }
+    
+    auth = (EXOTEL_API_KEY, EXOTEL_API_TOKEN)
+    
     try:
-        # TwiML URL that points to our /api/twilio/twiml endpoint
-        # We pass the user_email so the TwiML knows who is calling
-        twiml_url = f"{DOMAIN}/api/twilio/twiml?user_email={user_email}"
-        
-        call = twilio_client.calls.create(
-            to=to_phone,
-            from_=TWILIO_PHONE_NUMBER,
-            url=twiml_url
-        )
-        print(f"✅ Twilio Outbound Call Triggered: {call.sid}")
-        return call.sid
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, data=payload, auth=auth)
+            if resp.status_code == 200:
+                print(f"✅ Exotel Call Triggered: {resp.json().get('Call', {}).get('Sid')}")
+                return True
+            else:
+                print(f"❌ Exotel API Error: {resp.status_code} - {resp.text}")
+                return False
     except Exception as e:
-        print(f"❌ Twilio Outbound Error: {e}")
+        print(f"❌ Exotel Connection Error: {e}")
         return False
 
 @app.post("/api/send-demo-call")
@@ -933,13 +960,20 @@ async def send_demo_call(
     except Exception as e:
         print(f"Failed to log initial call: {e}")
 
+    if engine_type == "exotel":
+        success = await trigger_exotel_outbound_call(phone)
+        if success:
+             return {"success": True, "message": "Demo call initiated via Exotel."}
+        else:
+             return JSONResponse(status_code=500, content={"error": "Exotel call failed. Check server logs and .env (EXOTEL_PHONE_NUMBER)."})
+
     if engine_type == "self-hosted":
-        # Direct Twilio Orchestration (Pipecat style)
+        # Direct Twilio Orchestration
         success = await trigger_twilio_outbound_call(phone, current_user.email)
         if success:
             return {"success": True, "message": "Self-hosted demo call initiated via Twilio."}
         else:
-            return JSONResponse(status_code=500, content={"error": "Twilio orchestration failed. Check server logs."})
+            return JSONResponse(status_code=500, content={"error": "Twilio orchestration failed."})
 
     # Default Vapi Trigger (Legacy)
     try:
@@ -949,7 +983,7 @@ async def send_demo_call(
         return {"success": True, "message": "Vapi demo call initiated successfully."}
     except Exception as e:
         print(f"Error in demo call endpoint: {e}")
-        return JSONResponse(status_code=500, content={"error": "Failed to initiate call", "details": str(e)})
+        return JSONResponse(status_code=500, content={"error": "Failed to initiate call"})
 
 
 @app.post("/api/process-payment")
