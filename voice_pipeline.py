@@ -1,7 +1,7 @@
 """
 Missed Call Saviour — Voice AI Pipeline
-Whisper (STT via RunPod) + vLLM/Llama (LLM via RunPod) + gTTS (TTS, free)
-Cost target: ~₹0.95/min
+Whisper (STT via RunPod, fallback: Gemini) + Gemini (LLM primary) + gTTS (TTS, free)
+Cost target: ~₹0.95/min — Fully functional even without RunPod!
 """
 import os
 import io
@@ -53,32 +53,66 @@ async def runpod_call(endpoint_id: str, input_data: dict, timeout: float = 90.0)
             print(f"[RunPod] Exception ({endpoint_id}): {e}")
             return {"error": str(e)}
 
-# ── Whisper STT (RunPod) ──────────────────────────────────────────
+# ── Whisper STT (RunPod) with Gemini Fallback ────────────────────
 async def transcribe_audio(audio_bytes: bytes, language: str = "en") -> str:
-    audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
-    payload = {
-        "audio_base64": audio_b64,
-        "model": "base",          # 'base' = 4x cheaper than 'large-v3', good enough for calls
-        "language": language,
-        "task": "transcribe",
-        "temperature": 0.0
-    }
+    # Try RunPod Whisper first (if configured)
+    if RP_KEY and RP_WHISPER:
+        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+        payload = {
+            "audio_base64": audio_b64,
+            "model": "base",
+            "language": language,
+            "task": "transcribe",
+            "temperature": 0.0
+        }
+        try:
+            resp = await runpod_call(RP_WHISPER, payload)
+            output = resp.get("output", {})
+            if isinstance(output, str):
+                text = output.strip()
+            else:
+                text = (output.get("transcript", "") or output.get("text", "")).strip()
+            if text:
+                print(f"[Whisper] '{text}'")
+                return text
+            print(f"[Whisper] Empty/Error — falling back to Gemini STT")
+        except Exception as e:
+            print(f"[Whisper] Exception: {e} — falling back to Gemini STT")
+
+    # Gemini STT Fallback (FREE)
+    return await _gemini_stt_fallback(audio_bytes)
+
+async def _gemini_stt_fallback(audio_bytes: bytes) -> str:
+    """Use Gemini to transcribe audio when Whisper is unavailable."""
     try:
-        resp = await runpod_call(RP_WHISPER, payload)
-        output = resp.get("output", {})
-        if isinstance(output, str):
-            text = output.strip()
-        else:
-            text = (output.get("transcript", "") or output.get("text", "")).strip()
-        if not text and "error" in resp:
-            print(f"[Whisper] Error: {resp['error']}")
-        print(f"[Whisper] '{text}'")
+        if not genai_client:
+            print("[Gemini STT] No client available")
+            return ""
+        # Convert audio bytes to base64 for Gemini
+        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+        # Use Gemini with inline audio data
+        import google.genai.types as genai_types
+        response = genai_client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[
+                genai_types.Part.from_bytes(
+                    data=audio_bytes,
+                    mime_type="audio/wav"
+                ),
+                "Transcribe this audio exactly. Return ONLY the spoken words, nothing else. If silent or unclear, return empty string."
+            ]
+        )
+        text = response.text.strip() if response.text else ""
+        # Filter out common Gemini non-transcription responses
+        if any(phrase in text.lower() for phrase in ["cannot", "no audio", "unable", "i don't", "silent"]):
+            text = ""
+        print(f"[Gemini STT] '{text}'")
         return text
     except Exception as e:
-        print(f"[Whisper] Exception: {e}")
+        print(f"[Gemini STT] Error: {e}")
         return ""
 
-# ── vLLM / Llama (RunPod, OpenAI-compat) ─────────────────────────
+# ── LLM: Gemini Primary + vLLM (RunPod) as Optional ─────────────
 async def generate_reply(
     caller_message: str,
     business_name: str,
@@ -98,49 +132,65 @@ Rules:
 - Never make up business info you don't know
 - If unsure, say "I'll pass that to {owner_name}"
 """
-    messages = [{"role": "system", "content": base_system}]
-    messages.extend(conversation_history)
-    messages.append({"role": "user", "content": caller_message})
+    # Use Gemini as PRIMARY (free, fast, always available)
+    gemini_reply = await _gemini_fallback(caller_message, base_system, conversation_history)
+    if gemini_reply:
+        return gemini_reply
 
-    payload = {
-        "model": "meta-llama/Llama-3.1-8B-Instruct",
-        "messages": messages,
-        "max_tokens": 120,
-        "temperature": 0.7,
-        "top_p": 0.9,
-        "stop": ["<|eot_id|>", "<|end_of_text|>"]
-    }
-    try:
-        resp = await runpod_call(RP_VLLM, payload)
-        output = resp.get("output", {})
-        if isinstance(output, dict) and "choices" in output:
-            reply = output["choices"][0]["message"]["content"].strip()
-        elif isinstance(output, dict):
-            reply = output.get("response", output.get("text", "")).strip()
-        elif isinstance(output, str):
-            reply = output.strip()
-        else:
-            reply = ""
-        print(f"[vLLM] '{reply[:80]}'")
-        return reply if reply else await _gemini_fallback(caller_message, base_system)
-    except Exception as e:
-        print(f"[vLLM] Exception: {e}")
-        return await _gemini_fallback(caller_message, base_system)
+    # Fallback to RunPod vLLM only if Gemini fails
+    if RP_KEY and RP_VLLM:
+        messages = [{"role": "system", "content": base_system}]
+        messages.extend(conversation_history)
+        messages.append({"role": "user", "content": caller_message})
+        payload = {
+            "model": "meta-llama/Llama-3.1-8B-Instruct",
+            "messages": messages,
+            "max_tokens": 120,
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "stop": ["<|eot_id|>", "<|end_of_text|>"]
+        }
+        try:
+            resp = await runpod_call(RP_VLLM, payload)
+            output = resp.get("output", {})
+            if isinstance(output, dict) and "choices" in output:
+                reply = output["choices"][0]["message"]["content"].strip()
+            elif isinstance(output, dict):
+                reply = output.get("response", output.get("text", "")).strip()
+            elif isinstance(output, str):
+                reply = output.strip()
+            else:
+                reply = ""
+            if reply:
+                print(f"[vLLM] '{reply[:80]}'")
+                return reply
+        except Exception as e:
+            print(f"[vLLM] Exception: {e}")
 
-# ── Gemini LLM Fallback ───────────────────────────────────────────
-async def _gemini_fallback(prompt: str, system: str) -> str:
+    return "Thank you for calling. The owner will call you back shortly."
+
+# ── Gemini LLM (Primary) ─────────────────────────────────────────
+async def _gemini_fallback(prompt: str, system: str, history: list = None) -> str:
     try:
-        if genai_client:
-            r = genai_client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=f"{system}\n\nCaller: {prompt}"
-            )
-            print("[Gemini] Fallback used")
-            return r.text
-        return "Thank you for calling. The owner will call you back shortly."
+        if not genai_client:
+            return ""
+        # Build conversation context
+        ctx = ""
+        if history:
+            for msg in history[-6:]:  # last 3 exchanges
+                role = "Caller" if msg["role"] == "user" else "AI"
+                ctx += f"{role}: {msg['content']}\n"
+        full_prompt = f"{system}\n\nConversation so far:\n{ctx}\nCaller: {prompt}\nAI:"
+        r = genai_client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=full_prompt
+        )
+        reply = r.text.strip() if r.text else ""
+        print(f"[Gemini] '{reply[:80]}'")
+        return reply
     except Exception as e:
         print(f"[Gemini] Error: {e}")
-        return "Thank you for calling. The owner will call you back shortly."
+        return ""
 
 # ── gTTS (Free Text-to-Speech) ────────────────────────────────────
 def _gtts_to_wav(text: str, lang: str = "en") -> bytes:
