@@ -77,7 +77,6 @@ class CallLog(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     vapi_call_id = Column(String, nullable=True)
     monitor_url = Column(String, nullable=True)
-    telnyx_call_control_id = Column(String, nullable=True)
     caller_name = Column(String, nullable=True)
 
 class ChatMessage(Base):
@@ -146,12 +145,6 @@ except Exception as e:
     print(f"Failed to configure Gemini: {e}")
     genai_client = None
 
-TELNYX_API_KEY = os.getenv("TELNYX_API_KEY")
-TELNYX_HEADERS = {
-    "Authorization": f"Bearer {TELNYX_API_KEY}",
-    "Content-Type": "application/json"
-}
-
 # Configure Twilio
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
@@ -205,7 +198,6 @@ class SSEManager:
 
 sse_manager = SSEManager()
 
-from call_handler import handle_telnyx_webhook, handle_call_websocket
 from twilio_handler import handle_twilio_webhook, handle_twilio_websocket
 from exotel_handler import handle_exotel_webhook, handle_exotel_websocket
 
@@ -329,13 +321,6 @@ async def startup_event():
                 conn.execute(text("ALTER TABLE call_logs ADD COLUMN monitor_url TEXT"))
                 conn.commit()
             print("SUCCESS: 'monitor_url' added!", flush=True)
-            
-        if 'telnyx_call_control_id' not in columns:
-            print("INFO: 'telnyx_call_control_id' column missing. Attempting auto-migration...", flush=True)
-            with engine.connect() as conn:
-                conn.execute(text("ALTER TABLE call_logs ADD COLUMN telnyx_call_control_id VARCHAR(255)"))
-                conn.commit()
-            print("SUCCESS: 'telnyx_call_control_id' added!", flush=True)
             
         if 'caller_name' not in columns:
             print("INFO: 'caller_name' column missing. Attempting auto-migration...", flush=True)
@@ -608,16 +593,6 @@ async def read_root():
 @app.get("/api/sse")
 async def sse_endpoint(request: Request):
     return StreamingResponse(sse_manager.connect(request), media_type="text/event-stream")
-
-# Telnyx routes modularized in call_handler.py
-@app.post("/telnyx-webhook")
-async def telnyx_webhook(request: Request, db: Session = Depends(get_db)):
-    print("🔔 Telnyx Webhook POST received")
-    return await handle_telnyx_webhook(request, db)
-
-@app.websocket("/ws/call/{call_control_id}")
-async def call_ws(websocket: WebSocket, call_control_id: str, db: Session = Depends(get_db)):
-    await handle_call_websocket(websocket, call_control_id, db)
 
 # Twilio routes
 @app.post("/twilio-webhook")
